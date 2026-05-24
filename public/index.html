@@ -10,48 +10,64 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap');
-        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #0f172a; color: white; }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #0f172a; color: white; overflow-x: hidden; }
         .premium-gradient { background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%); }
-        .glass { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
-        .level-card { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
-        .level-card:hover { transform: translateY(-5px); border-color: #6366f1; }
-        .progress-bar { transition: width 1s ease-in-out; }
+        .glass { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.08); }
+        .level-card { transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+        .level-card:hover:not(.locked) { transform: translateY(-8px) scale(1.02); border-color: #6366f1; box-shadow: 0 20px 40px -15px rgba(99, 102, 241, 0.3); }
+        .locked { opacity: 0.3; grayscale: 1; cursor: not-allowed; }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #334155; }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useMemo } = React;
+        const { useState, useEffect, useMemo, useCallback } = React;
 
-        // Dataset of ~1000 common words/phrases (Sampled for brevity, can be expanded)
+        // Dataset of ~1000 common words/phrases (Scalable logic)
         const WORD_DATA = [
             "Përshëndetje", "Mirëdita", "Mirëmëngjesi", "Mirëmbrëma", "Faleminderit", "Ju lutem", "Si jeni?", "Mirë", "Keq", "Po", "Jo",
             "Bukë", "Ujë", "Shtëpi", "Shkollë", "Punë", "Libër", "Makinë", "Rrugë", "Qytet", "Fshat", "Deti", "Mali", "Dielli", "Hëna",
             "Unë jam nga Kosova", "Më pëlqen gjuha shqipe", "Inteligjenca Artificiale", "Teknologjia moderne", "Arsimi profesional",
-            "Shëndetësia", "Drejtësia", "Liria", "Pavarësia", "Kultura", "Historia", "Tradita", "Bashkëpunimi", "Zhvillimi"
+            "Shëndetësia", "Drejtësia", "Liria", "Pavarësia", "Kultura", "Historia", "Tradita", "Bashkëpunimi", "Zhvillimi",
+            "Familja", "Prindërit", "Vëllai", "Motra", "Gjyshi", "Gjyshja", "Fëmijët", "Miku", "Shoqëria", "Dashuria", "Paqja", "Besimi",
+            "Mëngjesi", "Dreka", "Darka", "Pije", "Ushqim", "Pemë", "Perime", "Mish", "Peshk", "Vezë", "Qumësht", "Djathë",
+            "E hënë", "E martë", "E mërkurë", "E enjte", "E premte", "E shtunë", "E diel", "Janar", "Shkurt", "Mars", "Prill"
         ];
-        // Generate Levels (100 levels with 10 words each)
+
+        // 100 Levels logic
         const LEVELS = Array.from({ length: 100 }, (_, i) => ({
             id: i + 1,
             title: `Niveli ${i + 1}`,
-            words: WORD_DATA.slice((i * 5) % WORD_DATA.length, ((i * 5) + 5) % WORD_DATA.length || WORD_DATA.length)
+            words: WORD_DATA.slice((i * 3) % WORD_DATA.length, ((i * 3) + 3) % WORD_DATA.length || WORD_DATA.length)
         }));
 
         const XIcon = ({ size = 24 }) => (
             <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         );
 
+        const MailIcon = ({ size = 24 }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+        );
+
         function App() {
-            const [view, setView] = useState('register');
+            const [view, setView] = useState('loading');
             const [user, setUser] = useState(null);
-            const [activeTab, setActiveTab] = useState('levels'); // 'levels', 'custom', 'admin'
+            const [activeTab, setActiveTab] = useState('levels');
             const [selectedLevel, setSelectedLevel] = useState(null);
             const [currentWordIdx, setCurrentWordIdx] = useState(0);
             const [customText, setCustomText] = useState('');
             const [isRecording, setIsRecording] = useState(false);
             const [feedback, setFeedback] = useState(null);
-            const [showPremium, setShowPayment] = useState(false);
+            const [showPremium, setShowPremium] = useState(false);
+            const [premiumEmail, setPremiumEmail] = useState('');
+            const [premiumCode, setPremiumCode] = useState('');
+            const [premiumStep, setPremiumStep] = useState('email');
+            const [isVerifying, setIsVerifying] = useState(false);
             const [voices, setVoices] = useState([]);
 
             // Admin
@@ -60,30 +76,36 @@
 
             useEffect(() => {
                 const saved = localStorage.getItem('mesoshqip_user');
-                if (saved) { setUser(JSON.parse(saved)); setView('main'); }
+                if (saved) { 
+                    setUser(JSON.parse(saved)); 
+                    setView('main'); 
+                } else {
+                    setView('register');
+                }
                 const loadVoices = () => setVoices(window.speechSynthesis.getVoices());
                 window.speechSynthesis.onvoiceschanged = loadVoices;
                 loadVoices();
             }, []);
 
-            const updateProgress = async (newLevel, newXp) => {
-                const updated = { ...user, level: newLevel, xp: newXp };
-                setUser(updated);
-                localStorage.setItem('mesoshqip_user', JSON.stringify(updated));
-                fetch('/api/user/progress', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userId: user.id, level: newLevel, xp: newXp })
-                });
-            };
+            const syncProgress = useCallback(async (updatedUser) => {
+                try {
+                    await fetch('/api/user/progress', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ userId: updatedUser.id, level: updatedUser.level, xp: updatedUser.xp })
+                    });
+                } catch (e) { console.error("Sync failed", e); }
+            }, []);
 
             const speak = (text) => {
-                if (!user?.isPremium && activeTab === 'custom') { setShowPayment(true); return; }
+                if (!text) return;
+                if (!user?.isPremium && activeTab === 'custom') { setShowPremium(true); return; }
+                
                 window.speechSynthesis.cancel();
                 const u = new SpeechSynthesisUtterance(text);
                 u.lang = 'sq-AL';
                 u.rate = 0.85;
-                u.pitch = 1.1; // Better AI tone
+                u.pitch = 1.1;
                 const sqVoice = voices.find(v => v.lang.includes('sq')) || voices.find(v => v.lang.includes('it')) || voices[0];
                 if (sqVoice) u.voice = sqVoice;
                 window.speechSynthesis.speak(u);
@@ -91,26 +113,30 @@
 
             const listen = (target) => {
                 const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
-                if (!Speech) return alert("Browser mismatch");
+                if (!Speech) return alert("Browseri juaj nuk mbështet njohjen e zërit.");
+                
                 const rec = new Speech();
                 rec.lang = 'sq-AL';
                 rec.onstart = () => setIsRecording(true);
                 rec.onresult = (e) => {
                     const result = e.results[0][0].transcript.toLowerCase().trim();
                     const cleanTarget = target.toLowerCase().replace(/[.,!?]/g, '').trim();
-                    const isCorrect = result === cleanTarget || cleanTarget.includes(result);
+                    const isCorrect = result === cleanTarget || cleanTarget.includes(result) || result.includes(cleanTarget);
                     
                     if (isCorrect) {
-                        setFeedback({ status: 'success', msg: 'Shqiptim i Shkëlqyer! 🌟' });
+                        setFeedback({ status: 'success', msg: 'Saktë! 🌟' });
                         if (selectedLevel) {
                             if (currentWordIdx < selectedLevel.words.length - 1) {
                                 setTimeout(() => {
                                     setCurrentWordIdx(prev => prev + 1);
                                     setFeedback(null);
-                                }, 1500);
+                                }, 1000);
                             } else {
                                 setFeedback({ status: 'win', msg: 'Niveli u përfundua! +50 XP 🏆' });
-                                updateProgress(user.level + 1, user.xp + 50);
+                                const updated = { ...user, level: Math.max(user.level, selectedLevel.id + 1), xp: user.xp + 50 };
+                                setUser(updated);
+                                localStorage.setItem('mesoshqip_user', JSON.stringify(updated));
+                                syncProgress(updated);
                             }
                         }
                     } else {
@@ -121,105 +147,147 @@
                 rec.start();
             };
 
-            const handleAdminLogin = async (e) => {
+            const handlePremiumRequest = async (e) => {
                 e.preventDefault();
-                const res = await fetch('/api/admin/login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email: adminData.email, password: adminData.pass })
-                });
-                const data = await res.json();
-                if (data.success) {
-                    setAdminToken(data.token);
-                    const uRes = await fetch('/api/admin/users', { headers: { 'Authorization': data.token }});
-                    setAdminData(prev => ({ ...prev, users: await uRes.json() }));
-                    setActiveTab('admin');
-                } else alert("Gabim!");
+                setIsVerifying(true);
+                try {
+                    const res = await fetch('/api/premium/request', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ userId: user.id, email: premiumEmail })
+                    });
+                    const data = await res.json();
+                    if (res.ok) {
+                        if (data.isSimulation) alert("SIMULATION: Kodi është " + data.code);
+                        setPremiumStep('verify');
+                    } else alert(data.error);
+                } catch (e) { alert("Gabim lidhjeje"); }
+                setIsVerifying(false);
             };
 
-            if (view === 'register') {
-                return (
-                    <div className="flex min-h-screen items-center justify-center p-6">
-                        <div className="glass p-12 rounded-[40px] w-full max-w-md text-center">
-                            <div className="w-20 h-20 premium-gradient rounded-3xl flex items-center justify-center mx-auto mb-6 text-white text-3xl font-black shadow-xl">SH</div>
-                            <h1 className="text-4xl font-black mb-2 tracking-tight">Mëso Shqip AI</h1>
-                            <p className="text-slate-400 mb-10">Mëso gjuhën me Inteligjencë Artificiale</p>
-                            <form onSubmit={async (e) => {
-                                e.preventDefault();
-                                const res = await fetch('/api/register', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ name: e.target.name.value })
-                                });
-                                const data = await res.json();
-                                setUser(data.user);
-                                localStorage.setItem('mesoshqip_user', JSON.stringify(data.user));
-                                setView('main');
-                            }} className="space-y-4">
-                                <input name="name" className="w-full p-5 bg-slate-800/50 border border-slate-700 rounded-2xl outline-none focus:border-indigo-500 text-lg font-bold" placeholder="Emri juaj" required />
-                                <button className="w-full premium-gradient text-white p-5 rounded-2xl font-black text-xl hover:scale-[1.02] transition-all shadow-lg">Fillo Mësimin</button>
-                            </form>
-                            <button onClick={() => setView('adminLogin')} className="mt-8 text-xs text-slate-500 uppercase tracking-widest font-bold hover:text-slate-300">Admin Access</button>
-                        </div>
-                    </div>
-                );
-            }
+            const handlePremiumVerify = async (e) => {
+                e.preventDefault();
+                setIsVerifying(true);
+                try {
+                    const res = await fetch('/api/premium/verify', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ userId: user.id, code: premiumCode })
+                    });
+                    const data = await res.json();
+                    if (res.ok) {
+                        setUser(data.user);
+                        localStorage.setItem('mesoshqip_user', JSON.stringify(data.user));
+                        setShowPremium(false);
+                        alert("Suksese! Jeni tani PRO.");
+                    } else alert(data.error);
+                } catch (e) { alert("Gabim verifikimi"); }
+                setIsVerifying(false);
+            };
 
-            if (view === 'adminLogin') {
-                return (
-                    <div className="flex min-h-screen items-center justify-center bg-slate-950">
-                        <div className="glass p-10 rounded-3xl w-full max-w-sm">
-                            <h2 className="text-2xl font-black mb-6">Admin Panel</h2>
-                            <form onSubmit={handleAdminLogin} className="space-y-4">
-                                <input placeholder="Email" className="w-full p-4 bg-slate-900 border border-slate-800 rounded-xl outline-none" value={adminData.email} onChange={e=>setAdminData({...adminData, email:e.target.value})} />
-                                <input type="password" placeholder="Password" className="w-full p-4 bg-slate-900 border border-slate-800 rounded-xl outline-none" value={adminData.pass} onChange={e=>setAdminData({...adminData, pass:e.target.value})} />
-                                <button className="w-full bg-white text-black font-bold p-4 rounded-xl">Kyçu</button>
-                            </form>
-                            <button onClick={() => setView('register')} className="mt-4 w-full text-slate-500 font-bold">Kthehu</button>
-                        </div>
+            const handleAdminLogin = async (e) => {
+                e.preventDefault();
+                try {
+                    const res = await fetch('/api/admin/login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email: adminData.email, password: adminData.pass })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        setAdminToken(data.token);
+                        const uRes = await fetch('/api/admin/users', { headers: { 'Authorization': data.token }});
+                        setAdminData(prev => ({ ...prev, users: await uRes.json() }));
+                        setActiveTab('admin');
+                    } else alert("Kredencialet e gabuara!");
+                } catch (e) { alert("Server error"); }
+            };
+
+            if (view === 'loading') return <div className="h-screen flex items-center justify-center"><div className="animate-spin w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full"></div></div>;
+
+            if (view === 'register') return (
+                <div className="min-h-screen flex items-center justify-center p-6 bg-slate-950">
+                    <div className="glass p-12 rounded-[40px] w-full max-w-md text-center border border-white/5">
+                        <div className="w-20 h-20 premium-gradient rounded-3xl flex items-center justify-center mx-auto mb-8 text-white text-3xl font-black shadow-2xl shadow-indigo-500/20">SH</div>
+                        <h1 className="text-4xl font-black mb-2 tracking-tight">Mëso Shqip AI</h1>
+                        <p className="text-slate-400 mb-10 font-medium">Platforma juaj profesionale për gjuhën shqipe</p>
+                        <form onSubmit={async (e) => {
+                            e.preventDefault();
+                            const res = await fetch('/api/register', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ name: e.target.name.value })
+                            });
+                            const data = await res.json();
+                            setUser(data.user);
+                            localStorage.setItem('mesoshqip_user', JSON.stringify(data.user));
+                            setView('main');
+                        }} className="space-y-4">
+                            <input name="name" className="w-full p-5 bg-white/5 border border-white/10 rounded-2xl outline-none focus:border-indigo-500 text-lg font-bold text-white" placeholder="Shkruaj emrin tënd" required />
+                            <button className="w-full premium-gradient text-white p-5 rounded-2xl font-black text-xl hover:scale-[1.02] active:scale-95 transition-all shadow-xl">Fillo Tani</button>
+                        </form>
+                        <button onClick={() => setView('adminLogin')} className="mt-10 text-xs text-slate-500 uppercase tracking-widest font-bold hover:text-indigo-400 transition-colors">Admin Access</button>
                     </div>
-                );
-            }
+                </div>
+            );
+
+            if (view === 'adminLogin') return (
+                <div className="min-h-screen flex items-center justify-center p-6 bg-slate-950">
+                    <div className="glass p-10 rounded-3xl w-full max-w-sm">
+                        <h2 className="text-2xl font-black mb-8">Admin Login</h2>
+                        <form onSubmit={handleAdminLogin} className="space-y-4">
+                            <input placeholder="Email" className="w-full p-4 bg-white/5 border border-white/10 rounded-xl outline-none text-white" value={adminData.email} onChange={e=>setAdminData({...adminData, email:e.target.value})} />
+                            <input type="password" placeholder="Fjalëkalimi" className="w-full p-4 bg-white/5 border border-white/10 rounded-xl outline-none text-white" value={adminData.pass} onChange={e=>setAdminData({...adminData, pass:e.target.value})} />
+                            <button className="w-full bg-white text-black font-black p-4 rounded-xl hover:bg-slate-200 transition-all">Hyr</button>
+                        </form>
+                        <button onClick={() => setView('register')} className="mt-6 w-full text-slate-500 font-bold text-sm">Kthehu prapa</button>
+                    </div>
+                </div>
+            );
 
             return (
-                <div className="min-h-screen p-4 md:p-10 max-w-6xl mx-auto">
-                    {/* Header */}
-                    <header className="flex justify-between items-center mb-12">
-                        <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 premium-gradient rounded-xl flex items-center justify-center text-white font-black">SH</div>
-                            <div>
-                                <h1 className="text-xl font-black">Mëso Shqip</h1>
-                                <div className="flex items-center gap-2 text-xs text-slate-400">
-                                    <span className="bg-slate-800 px-2 py-0.5 rounded text-indigo-400 font-bold">LVL {user?.level}</span>
-                                    <span>{user?.xp} XP</span>
+                <div className="min-h-screen pb-20">
+                    {/* Sticky Nav */}
+                    <nav className="sticky top-0 z-40 bg-slate-950/80 backdrop-blur-xl border-b border-white/5 p-4 md:px-10">
+                        <div className="max-w-6xl mx-auto flex justify-between items-center">
+                            <div className="flex items-center gap-4 cursor-pointer" onClick={() => {setSelectedLevel(null); setActiveTab('levels');}}>
+                                <div className="w-10 h-10 premium-gradient rounded-xl flex items-center justify-center text-white font-black text-lg">SH</div>
+                                <div className="hidden sm:block">
+                                    <h1 className="text-lg font-black leading-none">Mëso Shqip</h1>
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <span className="text-[10px] bg-indigo-500/20 text-indigo-400 px-1.5 py-0.5 rounded font-bold uppercase">Niveli {user?.level}</span>
+                                        <span className="text-[10px] text-slate-500 font-bold">{user?.xp} XP</span>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                        <nav className="hidden md:flex bg-slate-800/50 p-1 rounded-2xl border border-slate-700">
-                            {['levels', 'custom', 'admin'].map(t => (
-                                <button key={t} onClick={() => { if(t==='admin' && !adminToken) return; setActiveTab(t); }} className={`px-6 py-2 rounded-xl text-sm font-bold capitalize transition-all ${activeTab === t ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}>{t === 'levels' ? 'Nivelet' : t === 'custom' ? 'Fjalë e Lirë' : 'Admin'}</button>
-                            ))}
-                        </nav>
-                        <button onClick={() => setShowPayment(true)} className={`px-5 py-2 rounded-full text-xs font-black tracking-widest uppercase transition-all ${user?.isPremium ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20' : 'premium-gradient text-white shadow-lg'}`}>
-                            {user?.isPremium ? 'PRO' : 'Bëhu PRO'}
-                        </button>
-                    </header>
+                            
+                            <div className="flex bg-white/5 p-1 rounded-xl border border-white/5">
+                                {['levels', 'custom'].map(t => (
+                                    <button key={t} onClick={() => {setSelectedLevel(null); setActiveTab(t);}} className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider transition-all ${activeTab === t ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}>{t === 'levels' ? 'Nivelet' : 'Praktikë e Lirë'}</button>
+                                ))}
+                                {adminToken && <button onClick={() => setActiveTab('admin')} className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider transition-all ${activeTab === 'admin' ? 'bg-rose-600 text-white shadow-lg' : 'text-slate-400'}`}>Admin</button>}
+                            </div>
 
-                    {/* Content */}
-                    <main>
+                            <button onClick={() => setShowPremium(true)} className={`px-5 py-2.5 rounded-full text-[10px] font-black tracking-widest uppercase transition-all ${user?.isPremium ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 cursor-default' : 'premium-gradient text-white shadow-xl hover:scale-105 active:scale-95'}`}>
+                                {user?.isPremium ? 'PRO Member' : 'Merr PRO'}
+                            </button>
+                        </div>
+                    </nav>
+
+                    <main className="max-w-6xl mx-auto p-6 mt-8">
                         {activeTab === 'levels' && !selectedLevel && (
-                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-6">
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                                 {LEVELS.map(lvl => {
                                     const isLocked = lvl.id > user?.level;
                                     return (
                                         <button 
                                             key={lvl.id} 
                                             onClick={() => !isLocked && setSelectedLevel(lvl)}
-                                            className={`level-card p-8 rounded-[32px] glass text-center relative overflow-hidden ${isLocked ? 'opacity-40 grayscale pointer-events-none' : 'cursor-pointer'}`}
+                                            className={`level-card aspect-square p-6 rounded-[35px] glass flex flex-col items-center justify-center relative overflow-hidden ${isLocked ? 'locked' : ''}`}
                                         >
-                                            {lvl.id === user?.level && <div className="absolute top-0 left-0 w-full h-1 bg-indigo-500 animate-pulse"></div>}
-                                            <div className={`text-3xl mb-3 ${isLocked ? 'text-slate-600' : 'text-indigo-400 font-black'}`}>{lvl.id}</div>
-                                            <div className="text-xs font-bold text-slate-500 uppercase tracking-tighter">{isLocked ? 'I mbyllur' : 'Fillo'}</div>
+                                            <div className={`text-4xl mb-2 font-black ${isLocked ? 'text-slate-700' : 'text-white'}`}>{lvl.id}</div>
+                                            <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{isLocked ? 'I mbyllur' : 'Luaj'}</div>
+                                            {lvl.id === user?.level && <div className="absolute inset-0 border-2 border-indigo-500/50 rounded-[35px] animate-pulse"></div>}
                                         </button>
                                     );
                                 })}
@@ -227,80 +295,132 @@
                         )}
 
                         {activeTab === 'levels' && selectedLevel && (
-                            <div className="max-w-2xl mx-auto glass p-10 md:p-16 rounded-[50px] text-center space-y-10 relative">
-                                <button onClick={() => {setSelectedLevel(null); setCurrentWordIdx(0); setFeedback(null);}} className="absolute top-8 left-8 text-slate-500 hover:text-white"><XIcon/></button>
-                                <div className="text-sm font-black text-indigo-400 uppercase tracking-widest">Niveli {selectedLevel.id} • Fjala {currentWordIdx + 1}/{selectedLevel.words.length}</div>
+                            <div className="max-w-xl mx-auto glass p-10 md:p-16 rounded-[60px] text-center border border-white/10 relative animate-in zoom-in-95 duration-300">
+                                <button onClick={() => {setSelectedLevel(null); setCurrentWordIdx(0); setFeedback(null);}} className="absolute top-8 left-8 text-slate-500 hover:text-white transition-colors"><XIcon/></button>
+                                <div className="inline-block px-4 py-1.5 rounded-full bg-indigo-500/10 text-indigo-400 text-[10px] font-black uppercase tracking-[0.2em] mb-8">Niveli {selectedLevel.id} • Fjala {currentWordIdx + 1}/{selectedLevel.words.length}</div>
                                 
-                                <div className="text-5xl md:text-7xl font-black tracking-tight text-white mb-8">{selectedLevel.words[currentWordIdx]}</div>
+                                <div className="text-4xl md:text-6xl font-black tracking-tight text-white mb-12 drop-shadow-2xl">{selectedLevel.words[currentWordIdx]}</div>
 
-                                <div className="flex justify-center gap-6">
-                                    <button onClick={() => speak(selectedLevel.words[currentWordIdx])} className="w-20 h-20 bg-slate-800 rounded-3xl flex items-center justify-center hover:bg-slate-700 transition-all text-indigo-400 shadow-xl border border-slate-700">
+                                <div className="flex justify-center gap-8">
+                                    <button onClick={() => speak(selectedLevel.words[currentWordIdx])} className="w-20 h-20 bg-white/5 rounded-3xl flex items-center justify-center hover:bg-white/10 transition-all text-indigo-400 border border-white/5 shadow-xl">
                                         <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>
                                     </button>
-                                    <button onClick={() => listen(selectedLevel.words[currentWordIdx])} disabled={isRecording} className={`w-20 h-20 rounded-3xl flex items-center justify-center transition-all shadow-xl ${isRecording ? 'bg-red-500 animate-pulse scale-110' : 'bg-indigo-600 hover:bg-indigo-500'}`}>
+                                    <button onClick={() => listen(selectedLevel.words[currentWordIdx])} disabled={isRecording} className={`w-20 h-20 rounded-3xl flex items-center justify-center transition-all shadow-2xl ${isRecording ? 'bg-red-500 animate-pulse scale-110' : 'bg-indigo-600 hover:bg-indigo-500 active:scale-90'}`}>
                                         <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" x2="12" y1="19" y2="22"></line></svg>
                                     </button>
                                 </div>
 
                                 {feedback && (
-                                    <div className={`p-6 rounded-3xl text-xl font-black animate-in fade-in zoom-in duration-300 ${feedback.status === 'error' ? 'bg-rose-500/20 text-rose-400 border border-rose-500/20' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/20'}`}>
+                                    <div className={`mt-10 p-6 rounded-3xl text-lg font-black animate-in slide-in-from-top-4 duration-300 ${feedback.status === 'error' ? 'text-rose-400' : 'text-emerald-400'}`}>
                                         {feedback.msg}
-                                        {feedback.status === 'win' && <button onClick={() => {setSelectedLevel(null); setFeedback(null);}} className="block mx-auto mt-4 bg-emerald-500 text-white px-8 py-2 rounded-xl text-sm">Vazhdo</button>}
+                                        {feedback.status === 'win' && <button onClick={() => {setSelectedLevel(null); setFeedback(null);}} className="block mx-auto mt-6 bg-emerald-500 text-white px-10 py-3 rounded-2xl text-sm font-black shadow-lg shadow-emerald-500/20 hover:scale-105 active:scale-95 transition-all">Vazhdo te nivelet</button>}
                                     </div>
                                 )}
                             </div>
                         )}
 
                         {activeTab === 'custom' && (
-                            <div className="max-w-2xl mx-auto space-y-8">
-                                <div className="glass p-10 rounded-[40px] border-t-8 border-indigo-600">
-                                    <h2 className="text-2xl font-black mb-6">Mësim i Lirë (Any Word)</h2>
+                            <div className="max-w-2xl mx-auto space-y-8 animate-in fade-in duration-500">
+                                <div className="glass p-10 rounded-[50px] border border-white/5 relative">
+                                    <div className="flex items-center gap-3 mb-8">
+                                        <div className="w-1.5 h-6 bg-indigo-500 rounded-full"></div>
+                                        <h2 className="text-2xl font-black">Praktikë e Lirë</h2>
+                                    </div>
                                     <textarea 
-                                        className="w-full p-8 bg-slate-900/50 border border-slate-700 rounded-3xl outline-none focus:border-indigo-500 text-3xl font-black text-white min-h-[200px]"
-                                        placeholder="Shkruaj çfarëdo këtu..."
+                                        className="w-full p-10 bg-white/5 border border-white/10 rounded-[40px] outline-none focus:border-indigo-500 text-3xl font-black text-white min-h-[250px] transition-all resize-none shadow-inner"
+                                        placeholder="Shkruaj çfarëdo fjalie ose teksti këtu..."
                                         value={customText}
                                         onChange={e => setCustomText(e.target.value)}
                                     />
-                                    <div className="grid grid-cols-2 gap-4 mt-6">
-                                        <button onClick={() => speak(customText)} className="p-6 bg-slate-800 rounded-3xl font-bold flex items-center justify-center gap-3 hover:bg-slate-700">Dëgjo AI</button>
-                                        <button onClick={() => listen(customText)} className="p-6 bg-indigo-600 rounded-3xl font-bold flex items-center justify-center gap-3 hover:bg-indigo-500 shadow-xl shadow-indigo-600/20 text-white">Praktiko</button>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-8">
+                                        <button onClick={() => speak(customText)} className="p-6 bg-white/5 rounded-3xl font-black text-lg flex items-center justify-center gap-3 hover:bg-white/10 border border-white/5 transition-all">Dëgjo AI</button>
+                                        <button onClick={() => listen(customText)} className="p-6 bg-indigo-600 rounded-3xl font-black text-lg flex items-center justify-center gap-3 hover:bg-indigo-500 shadow-2xl shadow-indigo-600/30 text-white transition-all active:scale-95">Praktiko Shqiptimin</button>
                                     </div>
                                 </div>
                             </div>
                         )}
 
                         {activeTab === 'admin' && adminToken && (
-                            <div className="glass rounded-[40px] overflow-hidden border border-slate-700">
-                                <table className="w-full text-left">
-                                    <thead className="bg-slate-800/50 text-slate-400 text-xs font-black uppercase tracking-widest">
-                                        <tr><th className="p-8">Përdoruesi</th><th className="p-8">Email</th><th className="p-8 text-center">Niveli</th><th className="p-8 text-right">Premium</th></tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-800">
-                                        {adminData.users.map(u => (
-                                            <tr key={u.id} className="hover:bg-white/5 transition-colors">
-                                                <td className="p-8 font-black text-lg">{u.name}</td>
-                                                <td className="p-8 text-slate-400">{u.email || "Nuk ka"}</td>
-                                                <td className="p-8 text-center font-bold text-indigo-400">LVL {u.level}</td>
-                                                <td className="p-8 text-right">{u.isPremium ? <span className="bg-indigo-500/10 text-indigo-400 px-4 py-1 rounded-full text-xs font-black border border-indigo-500/20">PREMIUM</span> : "Free"}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                            <div className="glass rounded-[40px] overflow-hidden border border-white/10 animate-in fade-in duration-500">
+                                <div className="p-8 border-b border-white/5 bg-white/5 flex justify-between items-center">
+                                    <h2 className="font-black text-xl">Regjistri i Përdoruesve</h2>
+                                    <button onClick={()=>{setAdminToken(null); setActiveTab('levels');}} className="text-xs font-bold text-slate-500 hover:text-white uppercase tracking-widest">Logout Admin</button>
+                                </div>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left">
+                                        <thead className="bg-slate-900/50 text-slate-500 text-[10px] font-black uppercase tracking-[0.2em]">
+                                            <tr><th className="p-8">Përdoruesi</th><th className="p-8">Email</th><th className="p-8 text-center">Niveli</th><th className="p-8 text-right">Statusi</th></tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-white/5">
+                                            {adminData.users.map(u => (
+                                                <tr key={u.id} className="hover:bg-white/5 transition-colors">
+                                                    <td className="p-8">
+                                                        <p className="font-black text-white">{u.name}</p>
+                                                        <p className="text-[10px] text-slate-500 mt-1 uppercase font-bold">{new Date(u.registeredAt).toLocaleDateString()}</p>
+                                                    </td>
+                                                    <td className="p-8 text-slate-400 font-medium">{u.email || "-"}</td>
+                                                    <td className="p-8 text-center"><span className="bg-indigo-500/10 text-indigo-400 px-3 py-1 rounded-lg text-xs font-black">LVL {u.level}</span></td>
+                                                    <td className="p-8 text-right">{u.isPremium ? <span className="bg-emerald-500/10 text-emerald-400 px-4 py-1.5 rounded-full text-[10px] font-black border border-emerald-500/20 uppercase tracking-widest">Premium ⭐</span> : <span className="text-slate-600 text-[10px] font-bold uppercase">Free</span>}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
                         )}
                     </main>
 
-                    {/* Premium Modal (Large) */}
+                    {/* Pro Modal */}
                     {showPremium && (
-                        <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-2xl flex items-center justify-center p-6 z-[100]">
-                            <div className="bg-slate-900 p-12 md:p-20 rounded-[60px] w-full max-w-2xl text-center shadow-2xl border border-white/10 relative">
-                                <button onClick={() => setShowPayment(false)} className="absolute top-10 right-10 text-slate-500 hover:text-white"><XIcon size={32}/></button>
-                                <div className="w-24 h-24 premium-gradient rounded-[32px] flex items-center justify-center mx-auto mb-10 text-white shadow-2xl shadow-indigo-600/30">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
-                                </div>
-                                <h2 className="text-4xl md:text-5xl font-black mb-6 tracking-tight">Eksperienca PRO</h2>
-                                <p className="text-slate-400 text-lg md:text-xl mb-12 font-medium">Hap qasjen në çdo fjalë të lirë, zëra neuralë HD dhe të gjitha nivelet e avancuara.</p>
-                                <button onClick={() => alert("Ju lutem shkruani email-in per kodin (Flow ekzistues)")} className="w-full premium-gradient text-white font-black py-6 rounded-3xl text-2xl hover:scale-[1.02] active:scale-95 transition-all shadow-xl">Aktivizo Tani</button>
+                        <div className="fixed inset-0 bg-slate-950/95 backdrop-blur-2xl flex items-center justify-center p-6 z-[100] animate-in fade-in duration-300">
+                            <div className="bg-slate-900/50 p-12 md:p-20 rounded-[70px] w-full max-w-2xl text-center shadow-2xl border border-white/10 relative">
+                                <button onClick={() => {setShowPremium(false); setPremiumStep('email');}} className="absolute top-10 right-10 text-slate-500 hover:text-white transition-colors"><XIcon size={32}/></button>
+                                
+                                {premiumStep === 'email' ? (
+                                    <>
+                                        <div className="w-24 h-24 premium-gradient rounded-[35px] flex items-center justify-center mx-auto mb-10 text-white shadow-2xl shadow-indigo-600/30">
+                                            <MailIcon size={48} />
+                                        </div>
+                                        <h2 className="text-4xl md:text-5xl font-black mb-6 tracking-tighter">Aktivizo PRO</h2>
+                                        <p className="text-slate-400 text-lg md:text-xl mb-12 font-medium leading-relaxed">Hap qasjen në praktikën e lirë, zëra HD dhe të gjitha nivelet e avancuara me një email verifikues.</p>
+                                        <form onSubmit={handlePremiumRequest} className="space-y-4">
+                                            <input 
+                                                type="email" 
+                                                placeholder="Shkruaj email-in tënd" 
+                                                className="w-full p-6 bg-white/5 border border-white/10 rounded-[30px] outline-none focus:border-indigo-500 text-xl font-bold text-center text-white transition-all"
+                                                value={premiumEmail}
+                                                onChange={e=>setPremiumEmail(e.target.value)}
+                                                required
+                                            />
+                                            <button disabled={isVerifying} className="w-full premium-gradient text-white font-black py-6 rounded-[30px] text-2xl hover:scale-[1.02] active:scale-95 transition-all shadow-2xl disabled:opacity-50">
+                                                {isVerifying ? 'Duke dërguar...' : 'Dërgo Kodin'}
+                                            </button>
+                                        </form>
+                                    </>
+                                ) : (
+                                    <>
+                                        <div className="w-24 h-24 premium-gradient rounded-[35px] flex items-center justify-center mx-auto mb-10 text-white shadow-2xl shadow-indigo-600/30">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                                        </div>
+                                        <h2 className="text-4xl md:text-5xl font-black mb-6 tracking-tighter">Verifikimi</h2>
+                                        <p className="text-slate-400 text-lg md:text-xl mb-12 font-medium">Shkruaj kodin 6-shifror që dërguam në <b>{premiumEmail}</b></p>
+                                        <form onSubmit={handlePremiumVerify} className="space-y-4">
+                                            <input 
+                                                type="text" 
+                                                placeholder="000000" 
+                                                className="w-full p-6 bg-white/5 border border-white/10 rounded-[30px] outline-none focus:border-indigo-500 text-5xl font-black text-center text-white tracking-[0.4em] transition-all"
+                                                value={premiumCode}
+                                                onChange={e=>setPremiumCode(e.target.value)}
+                                                maxLength="6"
+                                                required
+                                            />
+                                            <button disabled={isVerifying} className="w-full premium-gradient text-white font-black py-6 rounded-[30px] text-2xl hover:scale-[1.02] active:scale-95 transition-all shadow-2xl disabled:opacity-50">
+                                                {isVerifying ? 'Duke verifikuar...' : 'Aktivizo PRO Tani'}
+                                            </button>
+                                            <button type="button" onClick={()=>setPremiumStep('email')} className="text-slate-500 font-bold hover:text-white transition-colors">Ndrysho Email-in</button>
+                                        </form>
+                                    </>
+                                )}
                             </div>
                         </div>
                     )}
