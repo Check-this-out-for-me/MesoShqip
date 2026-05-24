@@ -3,16 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mëso Shqip me AI</title>
+    <title>Mëso Shqip - Profesionale</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
-        .diff-error { color: #ef4444; font-weight: bold; text-decoration: underline; }
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap');
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f0f4f8; }
+        .diff-error { color: #f43f5e; font-weight: 800; background: #fff1f2; padding: 2px 4px; border-radius: 4px; }
         .diff-correct { color: #10b981; }
+        .premium-gradient { background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%); }
     </style>
 </head>
 <body>
@@ -21,33 +23,20 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo } = React;
 
-        const PHRASES = [
-            { id: 1, text: "Përshëndetje", translation: "Hello" },
-            { id: 2, text: "Si jeni", translation: "How are you" },
-            { id: 3, text: "Unë jam mirë", translation: "I am fine" },
-            { id: 4, text: "Gëzohem që ju njoha", translation: "Nice to meet you" },
-            { id: 5, text: "Faleminderit shumë", translation: "Thank you very much" }
-        ];
-
         function App() {
-            const [view, setView] = useState('register'); // register, app, adminLogin, adminDashboard
+            const [view, setView] = useState('register');
             const [currentUser, setCurrentUser] = useState(null);
-            
-            // Registration State
-            const [regName, setRegName] = useState('');
-            
+            const [customText, setCustomText] = useState('');
+            const [isRecording, setIsRecording] = useState(false);
+            const [transcript, setTranscript] = useState('');
+            const [feedback, setFeedback] = useState(null);
+            const [showPayment, setShowPayment] = useState(false);
+            const [voices, setVoices] = useState([]);
+
             // Admin State
             const [adminEmail, setAdminEmail] = useState('');
             const [adminPass, setAdminPass] = useState('');
-            const [adminToken, setAdminToken] = useState(null);
             const [usersList, setUsersList] = useState([]);
-
-            // App State
-            const [currentPhraseIdx, setCurrentPhraseIdx] = useState(0);
-            const [transcript, setTranscript] = useState('');
-            const [isRecording, setIsRecording] = useState(false);
-            const [feedback, setFeedback] = useState(null);
-            const [showPayment, setShowPayment] = useState(false);
 
             useEffect(() => {
                 const storedUser = localStorage.getItem('mesoshqip_user');
@@ -55,117 +44,111 @@
                     setCurrentUser(JSON.parse(storedUser));
                     setView('app');
                 }
+                
+                // Ngarko zerat e AI
+                const loadVoices = () => {
+                    const availableVoices = window.speechSynthesis.getVoices();
+                    setVoices(availableVoices);
+                };
+                window.speechSynthesis.onvoiceschanged = loadVoices;
+                loadVoices();
             }, []);
 
-            const currentPhrase = PHRASES[currentPhraseIdx];
-
-            // ---------------- SPEECH RECOGNITION ----------------
-            const startRecording = () => {
-                if (!('webkitSpeechRecognition' in window)) {
-                    alert("Browseri juaj nuk suporton njohjen e zërit. Përdorni Google Chrome.");
-                    return;
-                }
-
-                const recognition = new webkitSpeechRecognition();
-                recognition.lang = 'sq-AL';
-                recognition.continuous = false;
-                recognition.interimResults = false;
-
-                recognition.onstart = () => {
-                    setIsRecording(true);
-                    setTranscript('');
-                    setFeedback(null);
-                };
-
-                recognition.onresult = (event) => {
-                    const speechResult = event.results[0][0].transcript;
-                    setTranscript(speechResult);
-                    evaluateSpeech(speechResult, currentPhrase.text);
-                };
-
-                recognition.onerror = (event) => {
-                    console.error("Speech Error", event.error);
-                    setIsRecording(false);
-                };
-
-                recognition.onend = () => {
-                    setIsRecording(false);
-                };
-
-                recognition.start();
+            // ---------------- TREGUESI I ZËRIT MË TË MIRË (Neural/HD) ----------------
+            const getBestAlbanianVoice = () => {
+                // Kerkon per Anila ose Ilir (Neural voices ne Windows/Edge)
+                return voices.find(v => (v.lang.startsWith('sq') || v.name.includes('Albanian')) && v.name.includes('Online')) || 
+                       voices.find(v => v.lang.startsWith('sq')) || 
+                       null;
             };
 
-            const evaluateSpeech = (spoken, target) => {
-                const spokenWords = spoken.toLowerCase().replace(/[.,!?]/g, '').split(' ');
-                const targetWords = target.toLowerCase().replace(/[.,!?]/g, '').split(' ');
-                
-                let resultHtml = [];
-                let errors = 0;
-
-                targetWords.forEach((targetWord, index) => {
-                    if (spokenWords[index] === targetWord) {
-                        resultHtml.push(<span key={index} className="diff-correct mr-1">{targetWord}</span>);
-                    } else {
-                        resultHtml.push(<span key={index} className="diff-error mr-1">{targetWord}</span>);
-                        errors++;
-                    }
-                });
-
-                if (errors === 0) {
-                    setFeedback({ success: true, message: "E saktë! Perfekt! 🎉", html: resultHtml });
-                } else {
-                    setFeedback({ success: false, message: "Keni disa gabime në shqiptim.", html: resultHtml });
-                }
-            };
-
-            // ---------------- TEXT TO SPEECH (PREMIUM) ----------------
-            const playAudio = () => {
+            const speakText = (text) => {
                 if (!currentUser?.isPremium) {
                     setShowPayment(true);
                     return;
                 }
 
-                if (!('speechSynthesis' in window)) {
-                    alert("Text-to-Speech nuk suportohet.");
-                    return;
+                window.speechSynthesis.cancel();
+                const utterance = new SpeechSynthesisUtterance(text);
+                const bestVoice = getBestAlbanianVoice();
+                if (bestVoice) {
+                    utterance.voice = bestVoice;
+                    console.log("Duke perdorur zerin:", bestVoice.name);
                 }
-
-                const utterance = new SpeechSynthesisUtterance(currentPhrase.text);
                 utterance.lang = 'sq-AL';
-                // Nese sq-AL nuk eshte e disponueshme, browseri mundohet ta gjeje ose perdor default.
+                utterance.rate = 0.9; // Pak me ngadale per mesim
                 window.speechSynthesis.speak(utterance);
             };
 
-            // ---------------- API CALLS ----------------
+            // ---------------- SPEECH TO TEXT ----------------
+            const startPractice = () => {
+                if (!customText) return alert("Shkruaj një fjali ose fjalë për të praktikuar!");
+                
+                if (!('webkitSpeechRecognition' in window)) {
+                    alert("Përdorni Google Chrome për njohjen e zërit.");
+                    return;
+                }
+
+                const recognition = new webkitSpeechRecognition();
+                recognition.lang = 'sq-AL';
+                recognition.onstart = () => { setIsRecording(true); setTranscript(''); setFeedback(null); };
+                recognition.onresult = (e) => {
+                    const result = e.results[0][0].transcript;
+                    setTranscript(result);
+                    compareText(result, customText);
+                };
+                recognition.onend = () => setIsRecording(false);
+                recognition.start();
+            };
+
+            const compareText = (spoken, target) => {
+                const sWords = spoken.toLowerCase().replace(/[.,!?]/g, '').split(/\s+/);
+                const tWords = target.toLowerCase().replace(/[.,!?]/g, '').split(/\s+/);
+                
+                let html = [];
+                let errors = 0;
+
+                tWords.forEach((word, i) => {
+                    if (sWords.includes(word)) {
+                        html.push(<span key={i} className="diff-correct mr-1">{word}</span>);
+                    } else {
+                        html.push(<span key={i} className="diff-error mr-1">{word}</span>);
+                        errors++;
+                    }
+                });
+
+                setFeedback({
+                    success: errors === 0,
+                    message: errors === 0 ? "Shkëlqyeshëm! Shqiptim perfekt. 🌟" : `Keni ${errors} gabime. Provoni përsëri!`,
+                    html
+                });
+            };
+
+            // ---------------- HANDLERS ----------------
             const handleRegister = async (e) => {
                 e.preventDefault();
+                const name = e.target.name.value;
                 const res = await fetch('/api/register', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name: regName })
+                    body: JSON.stringify({ name })
                 });
                 const data = await res.json();
-                if (data.user) {
-                    setCurrentUser(data.user);
-                    localStorage.setItem('mesoshqip_user', JSON.stringify(data.user));
-                    setView('app');
-                }
+                setCurrentUser(data.user);
+                localStorage.setItem('mesoshqip_user', JSON.stringify(data.user));
+                setView('app');
             };
 
-            const handleSimulatePayment = async () => {
-                // Simulate Stripe Checkout success
+            const handlePremium = async () => {
                 const res = await fetch('/api/upgrade', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ userId: currentUser.id })
                 });
                 const data = await res.json();
-                if (data.user) {
-                    setCurrentUser(data.user);
-                    localStorage.setItem('mesoshqip_user', JSON.stringify(data.user));
-                    setShowPayment(false);
-                    alert("Pagesa u krye me sukses! Tani keni akses Premium.");
-                }
+                setCurrentUser(data.user);
+                localStorage.setItem('mesoshqip_user', JSON.stringify(data.user));
+                setShowPayment(false);
             };
 
             const handleAdminLogin = async (e) => {
@@ -177,42 +160,25 @@
                 });
                 const data = await res.json();
                 if (data.success) {
-                    setAdminToken(data.token);
-                    fetchUsers(data.token);
-                    setView('adminDashboard');
-                } else {
-                    alert("Kredenciale të gabuara");
-                }
+                    const uRes = await fetch('/api/admin/users', { headers: { 'Authorization': data.token }});
+                    setUsersList(await uRes.json());
+                    setView('admin');
+                } else alert("Gabim!");
             };
 
-            const fetchUsers = async (token) => {
-                const res = await fetch('/api/admin/users', {
-                    headers: { 'Authorization': token }
-                });
-                const data = await res.json();
-                setUsersList(data);
-            };
-
-            // ---------------- RENDERERS ----------------
+            // ---------------- VIEWS ----------------
             if (view === 'register') {
                 return (
-                    <div className="flex h-screen items-center justify-center bg-blue-50">
-                        <div className="bg-white p-10 rounded-3xl shadow-xl w-full max-w-md text-center">
-                            <h1 className="text-4xl font-black text-blue-600 mb-2">Mëso Shqip</h1>
-                            <p className="text-gray-500 mb-8">Përmirëso shqiptimin tënd me AI</p>
+                    <div className="flex h-screen items-center justify-center bg-slate-900 p-6">
+                        <div className="bg-white p-12 rounded-[40px] shadow-2xl w-full max-w-md text-center border-b-8 border-blue-600">
+                            <div className="w-20 h-20 bg-blue-600 rounded-3xl flex items-center justify-center mx-auto mb-6 text-white text-3xl font-black">SH</div>
+                            <h1 className="text-4xl font-black text-slate-800 mb-2">Mëso Shqip</h1>
+                            <p className="text-slate-400 mb-8 font-medium">Praktiko shqiptimin me Inteligjencë Artificiale</p>
                             <form onSubmit={handleRegister} className="space-y-4">
-                                <input 
-                                    className="w-full p-4 border-2 border-blue-100 rounded-xl outline-none focus:border-blue-500 text-lg" 
-                                    placeholder="Shkruaj emrin tënd" 
-                                    value={regName} onChange={e => setRegName(e.target.value)} required 
-                                />
-                                <button className="w-full bg-blue-600 text-white font-bold p-4 rounded-xl hover:bg-blue-700 transition-all text-lg">
-                                    Fillo Mësimin
-                                </button>
+                                <input name="name" className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none focus:border-blue-600 text-lg font-bold" placeholder="Emri juaj" required />
+                                <button className="w-full bg-blue-600 text-white p-5 rounded-2xl font-black text-xl hover:bg-blue-700 transition-all shadow-xl shadow-blue-600/20">Fillo</button>
                             </form>
-                            <button onClick={() => setView('adminLogin')} className="mt-6 text-sm text-gray-400 hover:text-gray-600">
-                                Hyrja për Admin
-                            </button>
+                            <button onClick={() => setView('adminLogin')} className="mt-8 text-xs text-slate-300 uppercase tracking-widest font-bold hover:text-slate-500">Admin Access</button>
                         </div>
                     </div>
                 );
@@ -220,47 +186,38 @@
 
             if (view === 'adminLogin') {
                 return (
-                    <div className="flex h-screen items-center justify-center bg-gray-900">
-                        <div className="bg-gray-800 p-10 rounded-3xl shadow-2xl w-full max-w-md text-center">
-                            <h1 className="text-3xl font-bold text-white mb-8">Admin Panel</h1>
+                    <div className="flex h-screen items-center justify-center bg-slate-900">
+                        <div className="bg-slate-800 p-10 rounded-3xl w-full max-w-sm">
+                            <h2 className="text-2xl font-black text-white mb-6">Admin Login</h2>
                             <form onSubmit={handleAdminLogin} className="space-y-4">
-                                <input type="email" placeholder="Email" className="w-full p-4 bg-gray-700 text-white border-none rounded-xl outline-none" value={adminEmail} onChange={e => setAdminEmail(e.target.value)} required />
-                                <input type="password" placeholder="Password" className="w-full p-4 bg-gray-700 text-white border-none rounded-xl outline-none" value={adminPass} onChange={e => setAdminPass(e.target.value)} required />
-                                <button className="w-full bg-white text-gray-900 font-bold p-4 rounded-xl hover:bg-gray-200">Kyçu</button>
+                                <input placeholder="Email" className="w-full p-4 bg-slate-700 text-white rounded-xl outline-none" value={adminEmail} onChange={e=>setAdminEmail(e.target.value)} />
+                                <input type="password" placeholder="Password" className="w-full p-4 bg-slate-700 text-white rounded-xl outline-none" value={adminPass} onChange={e=>setAdminPass(e.target.value)} />
+                                <button className="w-full bg-white text-slate-900 font-bold p-4 rounded-xl">Kyçu</button>
                             </form>
-                            <button onClick={() => setView('register')} className="mt-6 text-sm text-gray-400">Kthehu te faqja kryesore</button>
                         </div>
                     </div>
                 );
             }
 
-            if (view === 'adminDashboard') {
+            if (view === 'admin') {
                 return (
-                    <div className="min-h-screen bg-gray-50 p-10">
-                        <div className="max-w-4xl mx-auto bg-white rounded-3xl shadow-lg overflow-hidden">
-                            <div className="p-8 bg-gray-900 text-white flex justify-between items-center">
-                                <h2 className="text-2xl font-bold">Përdoruesit e Regjistruar</h2>
-                                <button onClick={() => {setAdminToken(null); setView('register');}} className="px-4 py-2 bg-gray-800 rounded-lg font-bold text-sm">Dil</button>
+                    <div className="min-h-screen bg-slate-50 p-10 font-sans">
+                        <div className="max-w-4xl mx-auto">
+                            <div className="flex justify-between items-center mb-8">
+                                <h1 className="text-3xl font-black">Panel Menaxhimi</h1>
+                                <button onClick={() => setView('register')} className="bg-slate-900 text-white px-6 py-2 rounded-xl font-bold">Dil</button>
                             </div>
-                            <div className="p-8">
+                            <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
                                 <table className="w-full text-left">
-                                    <thead className="bg-gray-100 text-gray-500 uppercase text-xs font-bold">
-                                        <tr>
-                                            <th className="p-4 rounded-tl-xl">ID</th>
-                                            <th className="p-4">Emri</th>
-                                            <th className="p-4">Statusi Premium</th>
-                                            <th className="p-4 rounded-tr-xl">Data e Regjistrimit</th>
-                                        </tr>
+                                    <thead className="bg-slate-50 text-slate-400 text-xs font-bold uppercase tracking-wider">
+                                        <tr><th className="p-6">Përdoruesi</th><th className="p-6">Statusi</th><th className="p-6">Data</th></tr>
                                     </thead>
-                                    <tbody className="divide-y divide-gray-100">
+                                    <tbody className="divide-y divide-slate-100">
                                         {usersList.map(u => (
-                                            <tr key={u.id}>
-                                                <td className="p-4 font-mono text-xs text-gray-400">{u.id}</td>
-                                                <td className="p-4 font-bold text-gray-800">{u.name}</td>
-                                                <td className="p-4">
-                                                    {u.isPremium ? <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold">Premium</span> : <span className="px-3 py-1 bg-gray-100 text-gray-600 rounded-full text-xs font-bold">Free</span>}
-                                                </td>
-                                                <td className="p-4 text-sm text-gray-500">{new Date(u.registeredAt).toLocaleString()}</td>
+                                            <tr key={u.id} className="hover:bg-slate-50">
+                                                <td className="p-6 font-bold">{u.name}</td>
+                                                <td className="p-6">{u.isPremium ? <span className="text-purple-600 font-black">PREMIUM ⭐</span> : "Free"}</td>
+                                                <td className="p-6 text-slate-400 text-sm">{new Date(u.registeredAt).toLocaleDateString()}</td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -272,114 +229,81 @@
             }
 
             return (
-                <div className="min-h-screen bg-blue-50 flex flex-col items-center py-12 px-4">
-                    <div className="max-w-xl w-full bg-white rounded-[40px] shadow-xl overflow-hidden relative">
-                        {/* Header */}
-                        <div className="p-8 flex justify-between items-center border-b border-gray-100">
+                <div className="min-h-screen bg-slate-100 p-6 md:p-12 flex flex-col items-center">
+                    <div className="max-w-2xl w-full space-y-8">
+                        <header className="flex justify-between items-center">
+                            <div><h1 className="text-2xl font-black text-slate-800">Mëso Shqip</h1><p className="text-slate-400 text-sm italic">AI-Powered Learning</p></div>
+                            <div className="flex items-center gap-4">
+                                {currentUser?.isPremium ? <span className="premium-gradient text-white px-4 py-2 rounded-full text-xs font-black shadow-lg">PREMIUM</span> : <button onClick={()=>setShowPayment(true)} className="bg-white text-blue-600 border border-blue-100 px-4 py-2 rounded-full text-xs font-black hover:bg-blue-50">UPGRADE</button>}
+                                <button onClick={()=>{localStorage.clear(); window.location.reload();}} className="text-slate-400 hover:text-slate-600"><X size={20}/></button>
+                            </div>
+                        </header>
+
+                        <main className="bg-white rounded-[40px] shadow-2xl p-8 md:p-12 space-y-8 relative overflow-hidden">
                             <div>
-                                <h2 className="font-black text-xl text-gray-800">Përshëndetje, {currentUser?.name}</h2>
-                                <p className="text-gray-400 text-sm">Mësimi {currentPhraseIdx + 1} nga {PHRASES.length}</p>
+                                <label className="text-xs font-black text-slate-300 uppercase tracking-widest mb-3 block">Shkruaj fjalinë që dëshiron të mësosh:</label>
+                                <textarea 
+                                    className="w-full p-6 bg-slate-50 border-2 border-slate-100 rounded-3xl outline-none focus:border-blue-500 text-2xl font-bold text-slate-700 min-h-[150px] transition-all"
+                                    placeholder="Psh: Mirëmëngjesi, si kaluat sot?"
+                                    value={customText}
+                                    onChange={e => setCustomText(e.target.value)}
+                                />
                             </div>
-                            {currentUser?.isPremium ? (
-                                <span className="bg-yellow-100 text-yellow-700 px-4 py-2 rounded-full font-bold text-sm">⭐ Premium</span>
-                            ) : (
-                                <button onClick={() => setShowPayment(true)} className="bg-blue-100 text-blue-600 px-4 py-2 rounded-full font-bold text-sm hover:bg-blue-200">Bëhu Premium</button>
-                            )}
-                        </div>
 
-                        {/* Flashcard */}
-                        <div className="p-10 text-center space-y-6">
-                            <p className="text-gray-400 font-medium uppercase tracking-widest text-sm">Përkthe ose shqipto:</p>
-                            <h3 className="text-2xl text-gray-500 italic">"{currentPhrase.translation}"</h3>
-                            <h1 className="text-5xl font-black text-gray-900 leading-tight">
-                                {currentPhrase.text}
-                            </h1>
-                        </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <button 
+                                    onClick={() => speakText(customText)}
+                                    className={`p-6 rounded-3xl font-black flex items-center justify-center gap-3 transition-all ${currentUser?.isPremium ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-600/20 hover:scale-[1.02]' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`}
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>
+                                    {currentUser?.isPremium ? 'Dëgjo me AI' : 'Dëgjo me AI (Premium)'}
+                                </button>
 
-                        {/* Actions */}
-                        <div className="p-8 bg-gray-50 flex flex-col gap-4">
-                            <button 
-                                onClick={playAudio} 
-                                className={`w-full py-4 rounded-2xl font-bold flex justify-center items-center gap-3 transition-all ${currentUser?.isPremium ? 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg' : 'bg-gray-200 text-gray-500 hover:bg-gray-300'}`}
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>
-                                {currentUser?.isPremium ? 'Dëgjo Shqiptimin (AI)' : 'Dëgjo me AI (Kërkon Premium)'}
-                            </button>
-                            
-                            <button 
-                                onClick={startRecording} 
-                                disabled={isRecording}
-                                className={`w-full py-5 rounded-2xl font-black text-xl flex justify-center items-center gap-3 transition-all shadow-xl ${isRecording ? 'bg-red-500 text-white animate-pulse' : 'bg-blue-500 text-white hover:bg-blue-600'}`}
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" x2="12" y1="19" y2="22"></line></svg>
-                                {isRecording ? 'Po dëgjon...' : 'Fillo të flasësh'}
-                            </button>
-                        </div>
-
-                        {/* Results */}
-                        {transcript && (
-                            <div className="p-8 border-t border-gray-100">
-                                <p className="text-sm text-gray-400 mb-2">Çfarë dëgjuam:</p>
-                                <p className="text-lg bg-gray-50 p-4 rounded-xl italic">"{transcript}"</p>
-                                
-                                {feedback && (
-                                    <div className={`mt-6 p-6 rounded-2xl ${feedback.success ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
-                                        <p className={`font-bold mb-2 ${feedback.success ? 'text-green-700' : 'text-red-700'}`}>{feedback.message}</p>
-                                        {!feedback.success && (
-                                            <div>
-                                                <p className="text-sm text-gray-500 mb-1">Krahasimi:</p>
-                                                <div className="text-lg">{feedback.html}</div>
-                                                <p className="text-xs text-red-400 mt-2">*Fjalët me të kuqe janë shqiptuar gabim ose nuk janë dëgjuar.</p>
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
+                                <button 
+                                    onClick={startPractice}
+                                    disabled={isRecording}
+                                    className={`p-6 rounded-3xl font-black flex items-center justify-center gap-3 transition-all shadow-xl ${isRecording ? 'bg-red-500 text-white animate-pulse' : 'bg-blue-600 text-white hover:bg-blue-700 hover:scale-[1.02]'}`}
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" x2="12" y1="19" y2="22"></line></svg>
+                                    {isRecording ? 'Po të dëgjoj...' : 'Fillo të flasësh'}
+                                </button>
                             </div>
-                        )}
 
-                        {/* Navigation */}
-                        <div className="p-6 bg-white flex justify-between border-t border-gray-100">
-                            <button 
-                                onClick={() => {setCurrentPhraseIdx(Math.max(0, currentPhraseIdx - 1)); setTranscript(''); setFeedback(null);}}
-                                disabled={currentPhraseIdx === 0}
-                                className="px-6 py-3 rounded-xl font-bold text-gray-500 hover:bg-gray-100 disabled:opacity-50"
-                            >
-                                Para
-                            </button>
-                            <button 
-                                onClick={() => {setCurrentPhraseIdx(Math.min(PHRASES.length - 1, currentPhraseIdx + 1)); setTranscript(''); setFeedback(null);}}
-                                disabled={currentPhraseIdx === PHRASES.length - 1}
-                                className="px-6 py-3 rounded-xl font-bold bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-50"
-                            >
-                                Tjetra
-                            </button>
-                        </div>
-
-                        {/* Payment Modal */}
-                        {showPayment && (
-                            <div className="absolute inset-0 bg-gray-900/80 backdrop-blur-sm flex items-center justify-center p-6 z-50">
-                                <div className="bg-white p-8 rounded-3xl w-full max-w-sm text-center shadow-2xl">
-                                    <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4 text-yellow-600">
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
-                                    </div>
-                                    <h2 className="text-2xl font-black mb-2">Akses Premium</h2>
-                                    <p className="text-gray-500 mb-8">Dëgjoni shqiptimin e saktë nga Inteligjenca Artificiale për t'u përmirësuar më shpejt.</p>
-                                    
-                                    <div className="bg-gray-50 p-4 rounded-xl mb-6 flex justify-between items-center border border-gray-200">
-                                        <span className="font-bold text-gray-700">Pagesa një herë:</span>
-                                        <span className="text-xl font-black text-blue-600">€9.99</span>
+                            {transcript && (
+                                <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                    <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100">
+                                        <p className="text-xs font-black text-slate-300 uppercase mb-2">Dëgjuam:</p>
+                                        <p className="text-xl font-bold text-slate-600">"{transcript}"</p>
                                     </div>
 
-                                    {/* Simulated Stripe Checkout */}
-                                    <button onClick={handleSimulatePayment} className="w-full bg-black text-white font-bold py-4 rounded-xl hover:bg-gray-800 shadow-lg flex items-center justify-center gap-2">
-                                        Paguaj me Kartë (Demo)
-                                    </button>
-                                    <button onClick={() => setShowPayment(false)} className="w-full mt-3 py-3 font-bold text-gray-400 hover:text-gray-600">
-                                        Anulo
-                                    </button>
+                                    {feedback && (
+                                        <div className={`p-8 rounded-[32px] border-2 ${feedback.success ? 'bg-emerald-50 border-emerald-100' : 'bg-rose-50 border-rose-100'}`}>
+                                            <p className={`text-xl font-black mb-4 ${feedback.success ? 'text-emerald-700' : 'text-rose-700'}`}>{feedback.message}</p>
+                                            <div className="text-2xl font-bold leading-relaxed">{feedback.html}</div>
+                                            {!feedback.success && <p className="text-xs text-rose-400 mt-4 font-bold uppercase tracking-widest">* Fjalët me të kuqe janë gabim</p>}
+                                        </div>
+                                    )}
                                 </div>
-                            </div>
-                        )}
+                            )}
+
+                            {showPayment && (
+                                <div className="absolute inset-0 bg-slate-900/90 backdrop-blur-md flex items-center justify-center p-8 z-50">
+                                    <div className="bg-white p-10 rounded-[40px] w-full max-w-sm text-center shadow-2xl border-t-8 border-purple-500">
+                                        <div className="w-16 h-16 premium-gradient rounded-3xl flex items-center justify-center mx-auto mb-6 text-white shadow-xl"><Save size={32}/></div>
+                                        <h2 className="text-3xl font-black mb-4">Akses Profesional</h2>
+                                        <p className="text-slate-500 mb-8 font-medium">Dëgjo çdo tekst me zëra njerëzorë të trajnuar me AI (Neural HD) për të mësuar intonacionin e saktë.</p>
+                                        <div className="bg-slate-50 p-5 rounded-2xl mb-8 flex justify-between items-center border-2 border-slate-100">
+                                            <span className="font-bold text-slate-400 uppercase text-xs">Pagesë një herë:</span>
+                                            <span className="text-3xl font-black text-slate-800">€9.99</span>
+                                        </div>
+                                        <button onClick={handlePremium} className="w-full premium-gradient text-white font-black py-5 rounded-2xl hover:scale-[1.02] transition-all shadow-2xl">Bëhu Anëtar</button>
+                                        <button onClick={()=>setShowPayment(false)} className="mt-4 text-slate-400 font-bold hover:text-slate-600">Më vonë</button>
+                                    </div>
+                                </div>
+                            )}
+                        </main>
+                        
+                        <footer className="text-center text-slate-300 text-xs font-bold uppercase tracking-[0.2em]">Sistemi i Mësimit Autonom © 2026</footer>
                     </div>
                 </div>
             );

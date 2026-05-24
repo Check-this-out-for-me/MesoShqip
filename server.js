@@ -77,7 +77,7 @@ app.get('/api/admin/users', (req, res) => {
     res.json(db.users);
 });
 
-app.get('*', (req, res) => {
+app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
