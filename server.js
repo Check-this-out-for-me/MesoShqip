@@ -18,13 +18,16 @@ app.use(express.static(path.join(__dirname, 'public')));
 const ADMIN_EMAIL = 'hyseniyll44@gmail.com';
 const ADMIN_PASS = 'Nora_bali1.';
 
-// Simple Logger with sanitized logs
+// Atomic Sync Lock to prevent Git conflicts during high traffic
+let isSyncing = false;
+let pendingSync = false;
+
 app.use((req, res, next) => {
-    console.log(`[${new Date().toLocaleTimeString()}] ${req.method} ${req.url}`);
+    const time = new Date().toLocaleTimeString();
+    console.log(`[${time}] ${req.method} ${req.url}`);
     next();
 });
 
-// Database Initialization
 if (!fs.existsSync(DB_FILE)) {
     fs.writeFileSync(DB_FILE, JSON.stringify({ users: [], verifications: [] }, null, 2));
 }
@@ -34,7 +37,6 @@ function readDB() {
         const data = fs.readFileSync(DB_FILE, 'utf8');
         return JSON.parse(data);
     } catch (e) {
-        console.error("DB Read Error:", e.message);
         return { users: [], verifications: [] };
     }
 }
@@ -42,55 +44,64 @@ function readDB() {
 function writeDB(data) {
     try {
         fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
-        
-        // Auto-sync to GitHub if token exists (Production/Render mode)
-        const token = process.env.GITHUB_TOKEN;
-        if (token) {
-            exec(`git add database.json && git commit -m "Update DB: User progress sync" && git push https://x-access-token:${token}@github.com/Check-this-out-for-me/MesoShqip.git main`, (err) => {
-                if (err) console.error("GitHub Sync Error:", err.message);
-                else console.log("Database synced to GitHub successfully.");
-            });
-        }
+        triggerGitHubSync();
     } catch (e) {
-        console.error("DB Write Error:", e.message);
+        console.error("DB Save Error:", e.message);
     }
 }
 
-// Mailer Setup
+function triggerGitHubSync() {
+    const token = process.env.GITHUB_TOKEN;
+    if (!token || isSyncing) {
+        if (token) pendingSync = true;
+        return;
+    }
+
+    isSyncing = true;
+    const cmd = `git add database.json && git commit -m "Auto-sync: DB update" && git push https://x-access-token:${token}@github.com/Check-this-out-for-me/MesoShqip.git main`;
+    
+    exec(cmd, (err) => {
+        isSyncing = false;
+        if (err) console.error("Sync Error:", err.message);
+        else console.log("GitHub Sync Success");
+        
+        if (pendingSync) {
+            pendingSync = false;
+            triggerGitHubSync();
+        }
+    });
+}
+
 let transporter;
+let smtpStatus = "Initializing";
+
 async function initSmtp() {
     try {
-        // Using Ethereal for testing or real SMTP if configured via env
         let testAccount = await nodemailer.createTestAccount();
         transporter = nodemailer.createTransport({
-            host: "smtp.ethereal.email",
-            port: 587,
-            secure: false,
-            auth: {
-                user: testAccount.user,
-                pass: testAccount.pass
-            },
+            host: "smtp.ethereal.email", port: 587, secure: false,
+            auth: { user: testAccount.user, pass: testAccount.pass },
         });
-        console.log(`[EMAIL SERVICE] Ready. Test account: ${testAccount.user}`);
+        smtpStatus = "Ready";
+        console.log(`[MAIL] Service Ready: ${testAccount.user}`);
     } catch (err) {
-        console.error("[EMAIL SERVICE ERROR] Failed to initialize SMTP:", err.message);
+        smtpStatus = "Simulation Mode";
+        console.error("[MAIL] Error, using Simulation.");
     }
 }
 initSmtp();
 
-// --- API ENDPOINTS ---
+// --- API ---
 
 app.post('/api/register', (req, res) => {
     const { name } = req.body;
-    if (!name) return res.status(400).json({ error: "Emri kërkohet" });
+    if (!name || name.length < 2) return res.status(400).json({ error: "Emri i pavlefshëm" });
 
     const db = readDB();
     const newUser = { 
         id: Date.now().toString(), 
-        name, 
-        isPremium: false, 
-        level: 1, 
-        xp: 0, 
+        name: name.substring(0, 50), 
+        isPremium: false, level: 1, xp: 0, 
         registeredAt: new Date().toISOString() 
     };
     db.users.push(newUser);
@@ -100,7 +111,7 @@ app.post('/api/register', (req, res) => {
 
 app.post('/api/premium/request', async (req, res) => {
     const { userId, email } = req.body;
-    if (!userId || !email) return res.status(400).json({ error: "Missing data" });
+    if (!userId || !email) return res.status(400).json({ error: "Të dhënat mungojnë" });
 
     const db = readDB();
     const user = db.users.find(u => u.id === userId);
@@ -108,33 +119,27 @@ app.post('/api/premium/request', async (req, res) => {
 
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     db.verifications = (db.verifications || []).filter(v => v.userId !== userId);
-    db.verifications.push({ userId, email, code, expires: Date.now() + 10 * 60 * 1000 });
+    db.verifications.push({ userId, email, code, expires: Date.now() + 600000 });
     writeDB(db);
 
     if (!transporter) {
-        console.log(`[SIMULATION] Code for ${email}: ${code}`);
+        console.log(`[DEMO CODE] ${email} -> ${code}`);
         return res.json({ message: "Simulated", code, isSimulation: true });
     }
 
     try {
         const info = await transporter.sendMail({
-            from: '"MësoShqip AI" <premium@mesoshqip.ai>',
+            from: '"MësoShqip AI" <noreply@mesoshqip.ai>',
             to: email,
             subject: "Kodi juaj Premium ⭐",
-            html: `
-                <div style="font-family:sans-serif; max-width:500px; margin:auto; border:1px solid #eee; padding:20px; border-radius:15px;">
-                    <h2 style="color:#6366f1; text-align:center;">MësoShqip Premium</h2>
-                    <p>Përshëndetje <b>${user.name}</b>,</p>
-                    <p>Kodi juaj për aktivizimin e paketës PRO është:</p>
-                    <div style="background:#f8fafc; padding:20px; text-align:center; font-size:32px; font-weight:bold; letter-spacing:5px; color:#1e293b; border-radius:10px;">${code}</div>
-                    <p style="font-size:12px; color:#64748b; margin-top:20px; text-align:center;">Ky kod skadon pas 10 minutave.</p>
-                </div>
-            `
+            html: `<div style="padding:20px;border:1px solid #eee;border-radius:10px;font-family:sans-serif;">
+                <h2>MësoShqip Premium</h2>
+                <p>Kodi juaj: <b style="font-size:24px;">${code}</b></p>
+            </div>`
         });
         res.json({ message: "OK", previewUrl: nodemailer.getTestMessageUrl(info) });
     } catch (err) {
-        console.error("Email Error:", err.message);
-        res.status(500).json({ error: "Dështoi dërgimi i email-it" });
+        res.status(500).json({ error: "Dështoi dërgimi" });
     }
 });
 
@@ -143,59 +148,44 @@ app.post('/api/premium/verify', (req, res) => {
     const db = readDB();
     const v = db.verifications?.find(x => x.userId === userId && x.code === code);
     
-    if (!v) return res.status(400).json({ error: "Kodi është i pasaktë" });
-    if (v.expires < Date.now()) return res.status(400).json({ error: "Kodi ka skaduar" });
+    if (!v || v.expires < Date.now()) return res.status(400).json({ error: "Kodi i pavlefshëm" });
 
     const idx = db.users.findIndex(u => u.id === userId);
-    if (idx === -1) return res.status(404).json({ error: "Përdoruesi nuk ekziston" });
-
-    db.users[idx].isPremium = true;
-    db.users[idx].email = v.email;
-    db.verifications = db.verifications.filter(x => x.userId !== userId);
-    writeDB(db);
-    res.json({ message: "OK", user: db.users[idx] });
+    if (idx !== -1) {
+        db.users[idx].isPremium = true;
+        db.users[idx].email = v.email;
+        db.verifications = db.verifications.filter(x => x.userId !== userId);
+        writeDB(db);
+        return res.json({ message: "OK", user: db.users[idx] });
+    }
+    res.status(404).json({ error: "User error" });
 });
 
 app.post('/api/admin/login', (req, res) => {
     const { email, password } = req.body;
     if (email === ADMIN_EMAIL && password === ADMIN_PASS) {
-        res.json({ success: true, token: 'secure-admin-session-' + Buffer.from(Date.now().toString()).toString('base64') });
-    } else {
-        res.status(401).json({ success: false, error: "Kredencialet e gabuara" });
-    }
+        const token = 'admin_' + Buffer.from(Date.now().toString()).toString('hex');
+        res.json({ success: true, token });
+    } else res.status(401).json({ error: "GABIM" });
 });
 
 app.get('/api/admin/users', (req, res) => {
-    const token = req.headers.authorization;
-    if (!token || !token.startsWith('secure-admin-session-')) {
-        return res.status(403).json({ error: "Unauthorized access" });
-    }
+    if (!req.headers.authorization?.startsWith('admin_')) return res.status(403).send("No");
     res.json(readDB().users);
 });
 
 app.post('/api/user/progress', (req, res) => {
     const { userId, level, xp } = req.body;
-    if (!userId) return res.status(400).json({ error: "Missing userId" });
-
     const db = readDB();
     const idx = db.users.findIndex(u => u.id === userId);
     if (idx !== -1) {
-        db.users[idx].level = level || db.users[idx].level;
-        db.users[idx].xp = xp || db.users[idx].xp;
+        db.users[idx].level = Math.max(db.users[idx].level, level || 0);
+        db.users[idx].xp = Math.max(db.users[idx].xp, xp || 0);
         writeDB(db);
-        return res.json({ success: true });
-    }
-    res.status(404).json({ error: "User not found" });
+        res.json({ success: true });
+    } else res.status(404).send("No");
 });
 
-// Serve frontend
-app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
+app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
-app.listen(PORT, () => {
-    console.log(`==================================================`);
-    console.log(`   MESOSHQIP SERVER ACTIVE ON PORT ${PORT}      `);
-    console.log(`   URL: http://localhost:${PORT}                `);
-    console.log(`==================================================`);
-});
+app.listen(PORT, () => console.log(`[SERVER] Active on port ${PORT}`));
