@@ -174,22 +174,42 @@
             // Step 1: Request Code
             const requestPremiumCode = async (e) => {
                 e.preventDefault();
+                console.log("Attempting to request premium code...");
+                console.log("Current User:", currentUser);
+                console.log("Email to verify:", premiumEmail);
+
+                if (!currentUser || !currentUser.id) {
+                    alert("Gabim: Përdoruesi nuk është identifikuar saktë. Prova të rifillosh aplikacionin.");
+                    return;
+                }
+
                 setIsVerifying(true);
                 try {
+                    const payload = { userId: currentUser.id, email: premiumEmail };
+                    console.log("Sending payload:", payload);
+
                     const res = await fetch('/api/premium/request', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ userId: currentUser.id, email: premiumEmail })
+                        body: JSON.stringify(payload)
                     });
+                    
+                    console.log("Response status:", res.status);
                     const data = await res.json();
+                    console.log("Response data:", data);
+
                     if (res.ok) {
-                        setEmailPreviewUrl(data.previewUrl);
+                        if (data.isSimulation) {
+                            alert("SIMULATION: Kodi juaj është " + data.code);
+                        }
+                        setEmailPreviewUrl(data.previewUrl || '');
                         setPremiumStep('verify');
                     } else {
-                        alert(data.error || "Gabim!");
+                        alert("GABIM SERVERI: " + (data.error || "Pati një problem me dërgimin."));
                     }
                 } catch (err) {
-                    alert("Gabim gjatë kërkesës!");
+                    console.error("Detailed Fetch error:", err);
+                    alert("GABIM NETI: Nuk po lidhemi dot me serverin. Shiko nese dritarja e zezë e serverit është hapur.");
                 } finally {
                     setIsVerifying(false);
                 }
