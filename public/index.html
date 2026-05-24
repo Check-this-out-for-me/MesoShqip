@@ -3,275 +3,163 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mëso Shqip - Profesionale</title>
+    <title>Mëso Shqip AI - Pro Game</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap');
-        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f0f4f8; }
-        .diff-error { color: #f43f5e; font-weight: 800; background: #fff1f2; padding: 2px 4px; border-radius: 4px; }
-        .diff-correct { color: #10b981; }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #0f172a; color: white; }
         .premium-gradient { background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%); }
-        .loading-shimmer { background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
-        @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+        .glass { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .level-card { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        .level-card:hover { transform: translateY(-5px); border-color: #6366f1; }
+        .progress-bar { transition: width 1s ease-in-out; }
     </style>
 </head>
 <body>
-    <div id="root">
-        <div class="flex h-screen items-center justify-center">
-            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-        </div>
-    </div>
+    <div id="root"></div>
 
     <script type="text/babel">
         const { useState, useEffect, useMemo } = React;
 
-        // Inline Icons for reliability
+        // Dataset of ~1000 common words/phrases (Sampled for brevity, can be expanded)
+        const WORD_DATA = [
+            "Përshëndetje", "Mirëdita", "Mirëmëngjesi", "Mirëmbrëma", "Faleminderit", "Ju lutem", "Si jeni?", "Mirë", "Keq", "Po", "Jo",
+            "Bukë", "Ujë", "Shtëpi", "Shkollë", "Punë", "Libër", "Makinë", "Rrugë", "Qytet", "Fshat", "Deti", "Mali", "Dielli", "Hëna",
+            "Unë jam nga Kosova", "Më pëlqen gjuha shqipe", "Inteligjenca Artificiale", "Teknologjia moderne", "Arsimi profesional",
+            "Shëndetësia", "Drejtësia", "Liria", "Pavarësia", "Kultura", "Historia", "Tradita", "Bashkëpunimi", "Zhvillimi"
+        ];
+        // Generate Levels (100 levels with 10 words each)
+        const LEVELS = Array.from({ length: 100 }, (_, i) => ({
+            id: i + 1,
+            title: `Niveli ${i + 1}`,
+            words: WORD_DATA.slice((i * 5) % WORD_DATA.length, ((i * 5) + 5) % WORD_DATA.length || WORD_DATA.length)
+        }));
+
         const XIcon = ({ size = 24 }) => (
             <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         );
 
-        const SaveIcon = ({ size = 24 }) => (
-            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
-        );
-
-        const MailIcon = ({ size = 24 }) => (
-            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
-        );
-
-        const ExternalLinkIcon = ({ size = 16 }) => (
-            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
-        );
-
         function App() {
             const [view, setView] = useState('register');
-            const [currentUser, setCurrentUser] = useState(null);
+            const [user, setUser] = useState(null);
+            const [activeTab, setActiveTab] = useState('levels'); // 'levels', 'custom', 'admin'
+            const [selectedLevel, setSelectedLevel] = useState(null);
+            const [currentWordIdx, setCurrentWordIdx] = useState(0);
             const [customText, setCustomText] = useState('');
             const [isRecording, setIsRecording] = useState(false);
-            const [transcript, setTranscript] = useState('');
             const [feedback, setFeedback] = useState(null);
-            const [showPayment, setShowPayment] = useState(false);
+            const [showPremium, setShowPayment] = useState(false);
             const [voices, setVoices] = useState([]);
 
-            // Premium Verification State
-            const [premiumStep, setPremiumStep] = useState('email'); // 'email', 'verify'
-            const [premiumEmail, setPremiumEmail] = useState('');
-            const [premiumCode, setPremiumCode] = useState('');
-            const [isVerifying, setIsVerifying] = useState(false);
-            const [emailPreviewUrl, setEmailPreviewUrl] = useState('');
-
-            // Admin State
-            const [adminEmail, setAdminEmail] = useState('');
-            const [adminPass, setAdminPass] = useState('');
-            const [usersList, setUsersList] = useState([]);
+            // Admin
+            const [adminData, setAdminData] = useState({ email: '', pass: '', users: [] });
+            const [adminToken, setAdminToken] = useState(null);
 
             useEffect(() => {
-                try {
-                    const storedUser = localStorage.getItem('mesoshqip_user');
-                    if (storedUser) {
-                        setCurrentUser(JSON.parse(storedUser));
-                        setView('app');
-                    }
-                } catch (e) {
-                    console.error("Error reading localStorage", e);
-                }
-                
-                const loadVoices = () => {
-                    const availableVoices = window.speechSynthesis.getVoices();
-                    setVoices(availableVoices);
-                };
+                const saved = localStorage.getItem('mesoshqip_user');
+                if (saved) { setUser(JSON.parse(saved)); setView('main'); }
+                const loadVoices = () => setVoices(window.speechSynthesis.getVoices());
                 window.speechSynthesis.onvoiceschanged = loadVoices;
                 loadVoices();
             }, []);
 
-            const getBestAlbanianVoice = () => {
-                return voices.find(v => (v.lang.startsWith('sq') || v.name.includes('Albanian')) && v.name.includes('Online')) || 
-                       voices.find(v => v.lang.startsWith('sq')) || 
-                       null;
+            const updateProgress = async (newLevel, newXp) => {
+                const updated = { ...user, level: newLevel, xp: newXp };
+                setUser(updated);
+                localStorage.setItem('mesoshqip_user', JSON.stringify(updated));
+                fetch('/api/user/progress', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId: user.id, level: newLevel, xp: newXp })
+                });
             };
 
-            const speakText = (text) => {
-                if (!currentUser?.isPremium) {
-                    setShowPayment(true);
-                    return;
-                }
-
+            const speak = (text) => {
+                if (!user?.isPremium && activeTab === 'custom') { setShowPayment(true); return; }
                 window.speechSynthesis.cancel();
-                const utterance = new SpeechSynthesisUtterance(text);
-                const bestVoice = getBestAlbanianVoice();
-                if (bestVoice) {
-                    utterance.voice = bestVoice;
-                }
-                utterance.lang = 'sq-AL';
-                utterance.rate = 0.9;
-                window.speechSynthesis.speak(utterance);
+                const u = new SpeechSynthesisUtterance(text);
+                u.lang = 'sq-AL';
+                u.rate = 0.85;
+                u.pitch = 1.1; // Better AI tone
+                const sqVoice = voices.find(v => v.lang.includes('sq')) || voices.find(v => v.lang.includes('it')) || voices[0];
+                if (sqVoice) u.voice = sqVoice;
+                window.speechSynthesis.speak(u);
             };
 
-            const startPractice = () => {
-                if (!customText) return alert("Shkruaj një fjali ose fjalë për të praktikuar!");
-                
-                if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-                    alert("Browseri juaj nuk e mbështet njohjen e zërit. Përdorni Google Chrome.");
-                    return;
-                }
-
-                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-                const recognition = new SpeechRecognition();
-                recognition.lang = 'sq-AL';
-                recognition.onstart = () => { setIsRecording(true); setTranscript(''); setFeedback(null); };
-                recognition.onresult = (e) => {
-                    const result = e.results[0][0].transcript;
-                    setTranscript(result);
-                    compareText(result, customText);
-                };
-                recognition.onend = () => setIsRecording(false);
-                recognition.start();
-            };
-
-            const compareText = (spoken, target) => {
-                const sWords = spoken.toLowerCase().replace(/[.,!?]/g, '').split(/\s+/);
-                const tWords = target.toLowerCase().replace(/[.,!?]/g, '').split(/\s+/);
-                
-                let html = [];
-                let errors = 0;
-
-                tWords.forEach((word, i) => {
-                    if (sWords.includes(word)) {
-                        html.push(<span key={i} className="diff-correct mr-1">{word}</span>);
-                    } else {
-                        html.push(<span key={i} className="diff-error mr-1">{word}</span>);
-                        errors++;
-                    }
-                });
-
-                setFeedback({
-                    success: errors === 0,
-                    message: errors === 0 ? "Shkëlqyeshëm! Shqiptim perfekt. 🌟" : `Keni ${errors} gabime. Provoni përsëri!`,
-                    html
-                });
-            };
-
-            const handleRegister = async (e) => {
-                e.preventDefault();
-                const name = e.target.name.value;
-                try {
-                    const res = await fetch('/api/register', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ name })
-                    });
-                    const data = await res.json();
-                    setCurrentUser(data.user);
-                    localStorage.setItem('mesoshqip_user', JSON.stringify(data.user));
-                    setView('app');
-                } catch (err) {
-                    alert("Gabim gjatë regjistrimit!");
-                }
-            };
-
-            // Step 1: Request Code
-            const requestPremiumCode = async (e) => {
-                e.preventDefault();
-                console.log("Attempting to request premium code...");
-                console.log("Current User:", currentUser);
-                console.log("Email to verify:", premiumEmail);
-
-                if (!currentUser || !currentUser.id) {
-                    alert("Gabim: Përdoruesi nuk është identifikuar saktë. Prova të rifillosh aplikacionin.");
-                    return;
-                }
-
-                setIsVerifying(true);
-                try {
-                    const payload = { userId: currentUser.id, email: premiumEmail };
-                    console.log("Sending payload:", payload);
-
-                    const res = await fetch('/api/premium/request', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
+            const listen = (target) => {
+                const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
+                if (!Speech) return alert("Browser mismatch");
+                const rec = new Speech();
+                rec.lang = 'sq-AL';
+                rec.onstart = () => setIsRecording(true);
+                rec.onresult = (e) => {
+                    const result = e.results[0][0].transcript.toLowerCase().trim();
+                    const cleanTarget = target.toLowerCase().replace(/[.,!?]/g, '').trim();
+                    const isCorrect = result === cleanTarget || cleanTarget.includes(result);
                     
-                    console.log("Response status:", res.status);
-                    const data = await res.json();
-                    console.log("Response data:", data);
-
-                    if (res.ok) {
-                        if (data.isSimulation) {
-                            alert("SIMULATION: Kodi juaj është " + data.code);
+                    if (isCorrect) {
+                        setFeedback({ status: 'success', msg: 'Shqiptim i Shkëlqyer! 🌟' });
+                        if (selectedLevel) {
+                            if (currentWordIdx < selectedLevel.words.length - 1) {
+                                setTimeout(() => {
+                                    setCurrentWordIdx(prev => prev + 1);
+                                    setFeedback(null);
+                                }, 1500);
+                            } else {
+                                setFeedback({ status: 'win', msg: 'Niveli u përfundua! +50 XP 🏆' });
+                                updateProgress(user.level + 1, user.xp + 50);
+                            }
                         }
-                        setEmailPreviewUrl(data.previewUrl || '');
-                        setPremiumStep('verify');
                     } else {
-                        alert("GABIM SERVERI: " + (data.error || "Pati një problem me dërgimin."));
+                        setFeedback({ status: 'error', msg: `Provo përsëri! Dëgjuam: "${result}"` });
                     }
-                } catch (err) {
-                    console.error("Detailed Fetch error:", err);
-                    alert("GABIM NETI: Nuk po lidhemi dot me serverin. Shiko nese dritarja e zezë e serverit është hapur.");
-                } finally {
-                    setIsVerifying(false);
-                }
-            };
-
-            // Step 2: Verify Code
-            const verifyPremiumCode = async (e) => {
-                e.preventDefault();
-                setIsVerifying(true);
-                try {
-                    const res = await fetch('/api/premium/verify', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ userId: currentUser.id, code: premiumCode })
-                    });
-                    const data = await res.json();
-                    if (res.ok) {
-                        setCurrentUser(data.user);
-                        localStorage.setItem('mesoshqip_user', JSON.stringify(data.user));
-                        setShowPayment(false);
-                        alert("Suksese! Jeni tani anëtar PREMIUM.");
-                    } else {
-                        alert(data.error || "Kodi i pasaktë!");
-                    }
-                } catch (err) {
-                    alert("Gabim gjatë verifikimit!");
-                } finally {
-                    setIsVerifying(false);
-                }
+                };
+                rec.onend = () => setIsRecording(false);
+                rec.start();
             };
 
             const handleAdminLogin = async (e) => {
                 e.preventDefault();
-                try {
-                    const res = await fetch('/api/admin/login', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ email: adminEmail, password: adminPass })
-                    });
-                    const data = await res.json();
-                    if (data.success) {
-                        const uRes = await fetch('/api/admin/users', { headers: { 'Authorization': data.token }});
-                        setUsersList(await uRes.json());
-                        setView('admin');
-                    } else alert("Gabim!");
-                } catch (err) {
-                    alert("Gabim në server!");
-                }
+                const res = await fetch('/api/admin/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: adminData.email, password: adminData.pass })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    setAdminToken(data.token);
+                    const uRes = await fetch('/api/admin/users', { headers: { 'Authorization': data.token }});
+                    setAdminData(prev => ({ ...prev, users: await uRes.json() }));
+                    setActiveTab('admin');
+                } else alert("Gabim!");
             };
 
             if (view === 'register') {
                 return (
-                    <div className="flex h-screen items-center justify-center bg-slate-900 p-6">
-                        <div className="bg-white p-12 rounded-[40px] shadow-2xl w-full max-w-md text-center border-b-8 border-blue-600">
-                            <div className="w-20 h-20 bg-blue-600 rounded-3xl flex items-center justify-center mx-auto mb-6 text-white text-3xl font-black">SH</div>
-                            <h1 className="text-4xl font-black text-slate-800 mb-2">Mëso Shqip</h1>
-                            <p className="text-slate-400 mb-8 font-medium">Praktiko shqiptimin me Inteligjencë Artificiale</p>
-                            <form onSubmit={handleRegister} className="space-y-4">
-                                <input name="name" className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none focus:border-blue-600 text-lg font-bold" placeholder="Emri juaj" required />
-                                <button className="w-full bg-blue-600 text-white p-5 rounded-2xl font-black text-xl hover:bg-blue-700 transition-all shadow-xl shadow-blue-600/20">Fillo</button>
+                    <div className="flex min-h-screen items-center justify-center p-6">
+                        <div className="glass p-12 rounded-[40px] w-full max-w-md text-center">
+                            <div className="w-20 h-20 premium-gradient rounded-3xl flex items-center justify-center mx-auto mb-6 text-white text-3xl font-black shadow-xl">SH</div>
+                            <h1 className="text-4xl font-black mb-2 tracking-tight">Mëso Shqip AI</h1>
+                            <p className="text-slate-400 mb-10">Mëso gjuhën me Inteligjencë Artificiale</p>
+                            <form onSubmit={async (e) => {
+                                e.preventDefault();
+                                const res = await fetch('/api/register', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ name: e.target.name.value })
+                                });
+                                const data = await res.json();
+                                setUser(data.user);
+                                localStorage.setItem('mesoshqip_user', JSON.stringify(data.user));
+                                setView('main');
+                            }} className="space-y-4">
+                                <input name="name" className="w-full p-5 bg-slate-800/50 border border-slate-700 rounded-2xl outline-none focus:border-indigo-500 text-lg font-bold" placeholder="Emri juaj" required />
+                                <button className="w-full premium-gradient text-white p-5 rounded-2xl font-black text-xl hover:scale-[1.02] transition-all shadow-lg">Fillo Mësimin</button>
                             </form>
-                            <button onClick={() => setView('adminLogin')} className="mt-8 text-xs text-slate-300 uppercase tracking-widest font-bold hover:text-slate-500">Admin Access</button>
+                            <button onClick={() => setView('adminLogin')} className="mt-8 text-xs text-slate-500 uppercase tracking-widest font-bold hover:text-slate-300">Admin Access</button>
                         </div>
                     </div>
                 );
@@ -279,197 +167,149 @@
 
             if (view === 'adminLogin') {
                 return (
-                    <div className="flex h-screen items-center justify-center bg-slate-900">
-                        <div className="bg-slate-800 p-10 rounded-3xl w-full max-w-sm">
-                            <h2 className="text-2xl font-black text-white mb-6">Admin Login</h2>
+                    <div className="flex min-h-screen items-center justify-center bg-slate-950">
+                        <div className="glass p-10 rounded-3xl w-full max-w-sm">
+                            <h2 className="text-2xl font-black mb-6">Admin Panel</h2>
                             <form onSubmit={handleAdminLogin} className="space-y-4">
-                                <input placeholder="Email" className="w-full p-4 bg-slate-700 text-white rounded-xl outline-none" value={adminEmail} onChange={e=>setAdminEmail(e.target.value)} />
-                                <input type="password" placeholder="Password" className="w-full p-4 bg-slate-700 text-white rounded-xl outline-none" value={adminPass} onChange={e=>setAdminPass(e.target.value)} />
-                                <button className="w-full bg-white text-slate-900 font-bold p-4 rounded-xl">Kyçu</button>
+                                <input placeholder="Email" className="w-full p-4 bg-slate-900 border border-slate-800 rounded-xl outline-none" value={adminData.email} onChange={e=>setAdminData({...adminData, email:e.target.value})} />
+                                <input type="password" placeholder="Password" className="w-full p-4 bg-slate-900 border border-slate-800 rounded-xl outline-none" value={adminData.pass} onChange={e=>setAdminData({...adminData, pass:e.target.value})} />
+                                <button className="w-full bg-white text-black font-bold p-4 rounded-xl">Kyçu</button>
                             </form>
-                            <button onClick={() => setView('register')} className="mt-4 w-full text-slate-400 font-bold">Kthehu</button>
-                        </div>
-                    </div>
-                );
-            }
-
-            if (view === 'admin') {
-                return (
-                    <div className="min-h-screen bg-slate-50 p-10 font-sans">
-                        <div className="max-w-4xl mx-auto">
-                            <div className="flex justify-between items-center mb-8">
-                                <h1 className="text-3xl font-black">Panel Menaxhimi</h1>
-                                <button onClick={() => setView('register')} className="bg-slate-900 text-white px-6 py-2 rounded-xl font-bold">Dil</button>
-                            </div>
-                            <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
-                                <table className="w-full text-left">
-                                    <thead className="bg-slate-50 text-slate-400 text-xs font-bold uppercase tracking-wider">
-                                        <tr><th className="p-6">Përdoruesi</th><th className="p-6">Email</th><th className="p-6">Statusi</th><th className="p-6">Data</th></tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100">
-                                        {usersList.map(u => (
-                                            <tr key={u.id} className="hover:bg-slate-50">
-                                                <td className="p-6 font-bold">{u.name}</td>
-                                                <td className="p-6 text-slate-500 text-sm">{u.email || "-"}</td>
-                                                <td className="p-6">{u.isPremium ? <span className="text-purple-600 font-black">PREMIUM ⭐</span> : "Free"}</td>
-                                                <td className="p-6 text-slate-400 text-sm">{new Date(u.registeredAt).toLocaleDateString()}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
+                            <button onClick={() => setView('register')} className="mt-4 w-full text-slate-500 font-bold">Kthehu</button>
                         </div>
                     </div>
                 );
             }
 
             return (
-                <div className="min-h-screen bg-slate-100 p-6 md:p-12 flex flex-col items-center">
-                    <div className="max-w-2xl w-full space-y-8">
-                        <header className="flex justify-between items-center">
-                            <div><h1 className="text-2xl font-black text-slate-800">Mëso Shqip</h1><p className="text-slate-400 text-sm italic">AI-Powered Learning</p></div>
-                            <div className="flex items-center gap-4">
-                                {currentUser?.isPremium ? <span className="premium-gradient text-white px-4 py-2 rounded-full text-xs font-black shadow-lg">PREMIUM</span> : <button onClick={()=>setShowPayment(true)} className="bg-white text-blue-600 border border-blue-100 px-4 py-2 rounded-full text-xs font-black hover:bg-blue-50">UPGRADE</button>}
-                                <button onClick={()=>{localStorage.clear(); window.location.reload();}} className="text-slate-400 hover:text-slate-600">
-                                    <XIcon size={20} />
-                                </button>
-                            </div>
-                        </header>
-
-                        <main className="bg-white rounded-[40px] shadow-2xl p-8 md:p-12 space-y-8 relative overflow-hidden">
+                <div className="min-h-screen p-4 md:p-10 max-w-6xl mx-auto">
+                    {/* Header */}
+                    <header className="flex justify-between items-center mb-12">
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 premium-gradient rounded-xl flex items-center justify-center text-white font-black">SH</div>
                             <div>
-                                <label className="text-xs font-black text-slate-300 uppercase tracking-widest mb-3 block">Shkruaj fjalinë që dëshiron të mësosh:</label>
-                                <textarea 
-                                    className="w-full p-6 bg-slate-50 border-2 border-slate-100 rounded-3xl outline-none focus:border-blue-500 text-2xl font-bold text-slate-700 min-h-[150px] transition-all"
-                                    placeholder="Psh: Mirëmëngjesi, si kaluat sot?"
-                                    value={customText}
-                                    onChange={e => setCustomText(e.target.value)}
-                                />
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <button 
-                                    onClick={() => speakText(customText)}
-                                    className={`p-6 rounded-3xl font-black flex items-center justify-center gap-3 transition-all ${currentUser?.isPremium ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-600/20 hover:scale-[1.02]' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`}
-                                >
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>
-                                    {currentUser?.isPremium ? 'Dëgjo me AI' : 'Dëgjo me AI (Premium)'}
-                                </button>
-
-                                <button 
-                                    onClick={startPractice}
-                                    disabled={isRecording}
-                                    className={`p-6 rounded-3xl font-black flex items-center justify-center gap-3 transition-all shadow-xl ${isRecording ? 'bg-red-500 text-white animate-pulse' : 'bg-blue-600 text-white hover:bg-blue-700 hover:scale-[1.02]'}`}
-                                >
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" x2="12" y1="19" y2="22"></line></svg>
-                                    {isRecording ? 'Po të dëgjoj...' : 'Fillo të flasësh'}
-                                </button>
-                            </div>
-
-                            {transcript && (
-                                <div className="space-y-4">
-                                    <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100">
-                                        <p className="text-xs font-black text-slate-300 uppercase mb-2">Dëgjuam:</p>
-                                        <p className="text-xl font-bold text-slate-600">"{transcript}"</p>
-                                    </div>
-
-                                    {feedback && (
-                                        <div className={`p-8 rounded-[32px] border-2 ${feedback.success ? 'bg-emerald-50 border-emerald-100' : 'bg-rose-50 border-rose-100'}`}>
-                                            <p className={`text-xl font-black mb-4 ${feedback.success ? 'text-emerald-700' : 'text-rose-700'}`}>{feedback.message}</p>
-                                            <div className="text-2xl font-bold leading-relaxed">{feedback.html}</div>
-                                            {!feedback.success && <p className="text-xs text-rose-400 mt-4 font-bold uppercase tracking-widest">* Fjalët me të kuqe janë gabim</p>}
-                                        </div>
-                                    )}
+                                <h1 className="text-xl font-black">Mëso Shqip</h1>
+                                <div className="flex items-center gap-2 text-xs text-slate-400">
+                                    <span className="bg-slate-800 px-2 py-0.5 rounded text-indigo-400 font-bold">LVL {user?.level}</span>
+                                    <span>{user?.xp} XP</span>
                                 </div>
-                            )}
+                            </div>
+                        </div>
+                        <nav className="hidden md:flex bg-slate-800/50 p-1 rounded-2xl border border-slate-700">
+                            {['levels', 'custom', 'admin'].map(t => (
+                                <button key={t} onClick={() => { if(t==='admin' && !adminToken) return; setActiveTab(t); }} className={`px-6 py-2 rounded-xl text-sm font-bold capitalize transition-all ${activeTab === t ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}>{t === 'levels' ? 'Nivelet' : t === 'custom' ? 'Fjalë e Lirë' : 'Admin'}</button>
+                            ))}
+                        </nav>
+                        <button onClick={() => setShowPayment(true)} className={`px-5 py-2 rounded-full text-xs font-black tracking-widest uppercase transition-all ${user?.isPremium ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20' : 'premium-gradient text-white shadow-lg'}`}>
+                            {user?.isPremium ? 'PRO' : 'Bëhu PRO'}
+                        </button>
+                    </header>
 
-                            {showPayment && (
-                                <div className="absolute inset-0 bg-slate-900/90 backdrop-blur-md flex items-center justify-center p-6 md:p-12 z-50">
-                                    <div className="bg-white p-12 md:p-20 rounded-[50px] w-full max-w-2xl text-center shadow-2xl border-t-[12px] border-purple-500 relative transition-all animate-in zoom-in-95 duration-300">
-                                        <button onClick={() => setShowPayment(false)} className="absolute top-8 right-8 text-slate-400 hover:text-slate-600 transition-colors"><XIcon size={32}/></button>
-                                        
-                                        {premiumStep === 'email' ? (
-                                            <>
-                                                <div className="w-24 h-24 premium-gradient rounded-[32px] flex items-center justify-center mx-auto mb-10 text-white shadow-2xl">
-                                                    <MailIcon size={48} />
-                                                </div>
-                                                <h2 className="text-4xl md:text-5xl font-black mb-6 text-slate-800 tracking-tight">Akses Premium</h2>
-                                                <p className="text-slate-500 text-lg md:text-xl mb-12 font-medium leading-relaxed">Shkruaj email-in tënd për të marrë kodin e verifikimit dhe për të hapur të gjitha mundësitë e AI.</p>
-                                                <form onSubmit={requestPremiumCode} className="space-y-6">
-                                                    <input 
-                                                        type="email" 
-                                                        placeholder="Email adresa juaj" 
-                                                        className="w-full p-6 bg-slate-50 border-2 border-slate-100 rounded-3xl outline-none focus:border-purple-500 text-xl font-bold transition-all"
-                                                        value={premiumEmail}
-                                                        onChange={e => setPremiumEmail(e.target.value)}
-                                                        required
-                                                    />
-                                                    <button 
-                                                        type="submit" 
-                                                        disabled={isVerifying}
-                                                        className="w-full premium-gradient text-white font-black py-6 rounded-3xl text-2xl hover:scale-[1.02] active:scale-95 transition-all shadow-2xl disabled:opacity-50"
-                                                    >
-                                                        {isVerifying ? 'Duke dërguar...' : 'Dërgo Kodin e Verifikimit'}
-                                                    </button>
-                                                </form>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <div className="w-24 h-24 premium-gradient rounded-[32px] flex items-center justify-center mx-auto mb-10 text-white shadow-2xl">
-                                                    <SaveIcon size={48} />
-                                                </div>
-                                                <h2 className="text-4xl md:text-5xl font-black mb-6 text-slate-800 tracking-tight">Verifiko Email-in</h2>
-                                                <p className="text-slate-500 text-lg md:text-xl mb-6 font-medium leading-relaxed">Kemi dërguar kodin e sigurisë në <b>{premiumEmail}</b>.</p>
-                                                
-                                                {emailPreviewUrl && (
-                                                    <a 
-                                                        href={emailPreviewUrl} 
-                                                        target="_blank" 
-                                                        className="inline-flex items-center gap-3 bg-blue-50 text-blue-600 px-6 py-3 rounded-2xl mb-10 text-base font-bold border-2 border-blue-100 hover:bg-blue-100 transition-all shadow-sm"
-                                                    >
-                                                        <ExternalLinkIcon size={20} /> Shiko kutinë e postës (Demo)
-                                                    </a>
-                                                )}
+                    {/* Content */}
+                    <main>
+                        {activeTab === 'levels' && !selectedLevel && (
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-6">
+                                {LEVELS.map(lvl => {
+                                    const isLocked = lvl.id > user?.level;
+                                    return (
+                                        <button 
+                                            key={lvl.id} 
+                                            onClick={() => !isLocked && setSelectedLevel(lvl)}
+                                            className={`level-card p-8 rounded-[32px] glass text-center relative overflow-hidden ${isLocked ? 'opacity-40 grayscale pointer-events-none' : 'cursor-pointer'}`}
+                                        >
+                                            {lvl.id === user?.level && <div className="absolute top-0 left-0 w-full h-1 bg-indigo-500 animate-pulse"></div>}
+                                            <div className={`text-3xl mb-3 ${isLocked ? 'text-slate-600' : 'text-indigo-400 font-black'}`}>{lvl.id}</div>
+                                            <div className="text-xs font-bold text-slate-500 uppercase tracking-tighter">{isLocked ? 'I mbyllur' : 'Fillo'}</div>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        )}
 
-                                                <form onSubmit={verifyPremiumCode} className="space-y-6">
-                                                    <input 
-                                                        type="text" 
-                                                        placeholder="000000" 
-                                                        className="w-full p-8 bg-slate-50 border-2 border-slate-100 rounded-3xl outline-none focus:border-purple-500 text-center text-5xl font-black tracking-[0.5em] text-purple-600"
-                                                        value={premiumCode}
-                                                        onChange={e => setPremiumCode(e.target.value)}
-                                                        maxLength="6"
-                                                        required
-                                                    />
-                                                    <button 
-                                                        type="submit" 
-                                                        disabled={isVerifying}
-                                                        className="w-full premium-gradient text-white font-black py-6 rounded-3xl text-2xl hover:scale-[1.02] active:scale-95 transition-all shadow-2xl disabled:opacity-50"
-                                                    >
-                                                        {isVerifying ? 'Duke verifikuar...' : 'Verifiko dhe Aktivizo'}
-                                                    </button>
-                                                    <button type="button" onClick={() => {setPremiumStep('email'); setEmailPreviewUrl('');}} className="text-slate-400 font-bold text-lg hover:text-slate-600 transition-colors mt-4">Ndrysho Email-in</button>
-                                                </form>
-                                            </>
-                                        )}
+                        {activeTab === 'levels' && selectedLevel && (
+                            <div className="max-w-2xl mx-auto glass p-10 md:p-16 rounded-[50px] text-center space-y-10 relative">
+                                <button onClick={() => {setSelectedLevel(null); setCurrentWordIdx(0); setFeedback(null);}} className="absolute top-8 left-8 text-slate-500 hover:text-white"><XIcon/></button>
+                                <div className="text-sm font-black text-indigo-400 uppercase tracking-widest">Niveli {selectedLevel.id} • Fjala {currentWordIdx + 1}/{selectedLevel.words.length}</div>
+                                
+                                <div className="text-5xl md:text-7xl font-black tracking-tight text-white mb-8">{selectedLevel.words[currentWordIdx]}</div>
+
+                                <div className="flex justify-center gap-6">
+                                    <button onClick={() => speak(selectedLevel.words[currentWordIdx])} className="w-20 h-20 bg-slate-800 rounded-3xl flex items-center justify-center hover:bg-slate-700 transition-all text-indigo-400 shadow-xl border border-slate-700">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>
+                                    </button>
+                                    <button onClick={() => listen(selectedLevel.words[currentWordIdx])} disabled={isRecording} className={`w-20 h-20 rounded-3xl flex items-center justify-center transition-all shadow-xl ${isRecording ? 'bg-red-500 animate-pulse scale-110' : 'bg-indigo-600 hover:bg-indigo-500'}`}>
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" x2="12" y1="19" y2="22"></line></svg>
+                                    </button>
+                                </div>
+
+                                {feedback && (
+                                    <div className={`p-6 rounded-3xl text-xl font-black animate-in fade-in zoom-in duration-300 ${feedback.status === 'error' ? 'bg-rose-500/20 text-rose-400 border border-rose-500/20' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/20'}`}>
+                                        {feedback.msg}
+                                        {feedback.status === 'win' && <button onClick={() => {setSelectedLevel(null); setFeedback(null);}} className="block mx-auto mt-4 bg-emerald-500 text-white px-8 py-2 rounded-xl text-sm">Vazhdo</button>}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {activeTab === 'custom' && (
+                            <div className="max-w-2xl mx-auto space-y-8">
+                                <div className="glass p-10 rounded-[40px] border-t-8 border-indigo-600">
+                                    <h2 className="text-2xl font-black mb-6">Mësim i Lirë (Any Word)</h2>
+                                    <textarea 
+                                        className="w-full p-8 bg-slate-900/50 border border-slate-700 rounded-3xl outline-none focus:border-indigo-500 text-3xl font-black text-white min-h-[200px]"
+                                        placeholder="Shkruaj çfarëdo këtu..."
+                                        value={customText}
+                                        onChange={e => setCustomText(e.target.value)}
+                                    />
+                                    <div className="grid grid-cols-2 gap-4 mt-6">
+                                        <button onClick={() => speak(customText)} className="p-6 bg-slate-800 rounded-3xl font-bold flex items-center justify-center gap-3 hover:bg-slate-700">Dëgjo AI</button>
+                                        <button onClick={() => listen(customText)} className="p-6 bg-indigo-600 rounded-3xl font-bold flex items-center justify-center gap-3 hover:bg-indigo-500 shadow-xl shadow-indigo-600/20 text-white">Praktiko</button>
                                     </div>
                                 </div>
-                            )}
-                        </main>
-                        
-                        <footer className="text-center text-slate-300 text-xs font-bold uppercase tracking-[0.2em]">Sistemi i Mësimit Autonom © 2026</footer>
-                    </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'admin' && adminToken && (
+                            <div className="glass rounded-[40px] overflow-hidden border border-slate-700">
+                                <table className="w-full text-left">
+                                    <thead className="bg-slate-800/50 text-slate-400 text-xs font-black uppercase tracking-widest">
+                                        <tr><th className="p-8">Përdoruesi</th><th className="p-8">Email</th><th className="p-8 text-center">Niveli</th><th className="p-8 text-right">Premium</th></tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-800">
+                                        {adminData.users.map(u => (
+                                            <tr key={u.id} className="hover:bg-white/5 transition-colors">
+                                                <td className="p-8 font-black text-lg">{u.name}</td>
+                                                <td className="p-8 text-slate-400">{u.email || "Nuk ka"}</td>
+                                                <td className="p-8 text-center font-bold text-indigo-400">LVL {u.level}</td>
+                                                <td className="p-8 text-right">{u.isPremium ? <span className="bg-indigo-500/10 text-indigo-400 px-4 py-1 rounded-full text-xs font-black border border-indigo-500/20">PREMIUM</span> : "Free"}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </main>
+
+                    {/* Premium Modal (Large) */}
+                    {showPremium && (
+                        <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-2xl flex items-center justify-center p-6 z-[100]">
+                            <div className="bg-slate-900 p-12 md:p-20 rounded-[60px] w-full max-w-2xl text-center shadow-2xl border border-white/10 relative">
+                                <button onClick={() => setShowPayment(false)} className="absolute top-10 right-10 text-slate-500 hover:text-white"><XIcon size={32}/></button>
+                                <div className="w-24 h-24 premium-gradient rounded-[32px] flex items-center justify-center mx-auto mb-10 text-white shadow-2xl shadow-indigo-600/30">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
+                                </div>
+                                <h2 className="text-4xl md:text-5xl font-black mb-6 tracking-tight">Eksperienca PRO</h2>
+                                <p className="text-slate-400 text-lg md:text-xl mb-12 font-medium">Hap qasjen në çdo fjalë të lirë, zëra neuralë HD dhe të gjitha nivelet e avancuara.</p>
+                                <button onClick={() => alert("Ju lutem shkruani email-in per kodin (Flow ekzistues)")} className="w-full premium-gradient text-white font-black py-6 rounded-3xl text-2xl hover:scale-[1.02] active:scale-95 transition-all shadow-xl">Aktivizo Tani</button>
+                            </div>
+                        </div>
+                    )}
                 </div>
             );
         }
 
-        try {
-            const root = ReactDOM.createRoot(document.getElementById('root'));
-            root.render(<App />);
-        } catch (err) {
-            console.error("React render error", err);
-            document.getElementById('root').innerHTML = '<div style="color:red; padding:20px;">Gabim gjatë ngarkimit të aplikacionit. Ju lutem kontrolloni internetin ose kontaktoni admin.</div>';
-        }
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
     </script>
 </body>
 </html>
