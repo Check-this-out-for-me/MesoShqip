@@ -138,5 +138,5 @@ app.post('/api/user/progress', (req, res) => {
     } else res.status(404).send();
 });
 
-app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+app.get('*any', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 app.listen(PORT, () => console.log(`Server on ${PORT}`));
