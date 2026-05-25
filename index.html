@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="sq">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Mëso Shqip AI - Pro Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap');
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #0f172a; color: white; overflow-x: hidden; touch-action: manipulation; }
+        .premium-gradient { background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%); }
+        .glass { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.08); }
+        .level-card { transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+        .level-card:hover:not(.locked) { transform: translateY(-8px) scale(1.02); border-color: #6366f1; box-shadow: 0 20px 40px -15px rgba(99, 102, 241, 0.3); }
+        .locked { opacity: 0.3; grayscale: 1; cursor: not-allowed; }
+        .animate-pop { animation: pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        @keyframes pop { 0% { transform: scale(0.95); } 100% { transform: scale(1); } }
+        
+        /* Pulse animation for the listen button */
+        .btn-pulse { animation: btnPulse 1.5s infinite; }
+        @keyframes btnPulse {
+            0% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.7); transform: scale(1); }
+            70% { box-shadow: 0 0 0 15px rgba(99, 102, 241, 0); transform: scale(1.05); }
+            100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); transform: scale(1); }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useCallback, useMemo } = React;
+
+        // Curated Progressive Word List with Translations
+        const WORD_DATA = [
+            { sq: "Po", en: "Yes" }, { sq: "Jo", en: "No" }, { sq: "Te", en: "At" }, { sq: "Me", en: "With" },
+            { sq: "Ku", en: "Where" }, { sq: "Si", en: "How" }, { sq: "Ke", en: "Who/Have" }, { sq: "Sa", en: "How much" },
+            { sq: "Pa", en: "Without" }, { sq: "Ne", en: "We" }, { sq: "Një", en: "One" }, { sq: "Dy", en: "Two" },
+            { sq: "Tre", en: "Three" }, { sq: "Bukë", en: "Bread" }, { sq: "Ujë", en: "Water" }, { sq: "Syri", en: "The eye" },
+            { sq: "Dora", en: "The hand" }, { sq: "Mali", en: "The mountain" }, { sq: "Dera", en: "The door" }, { sq: "Ora", en: "The clock" },
+            { sq: "Molla", en: "The apple" }, { sq: "Pemë", en: "Tree" }, { sq: "Lulja", en: "The flower" }, { sq: "Libri", en: "The book" },
+            { sq: "Rruga", en: "The road" }, { sq: "Qytet", en: "City" }, { sq: "Fshat", en: "Village" }, { sq: "Vlorë", en: "Vlora (City)" },
+            { sq: "Pejë", en: "Peja (City)" }, { sq: "Gjumi", en: "Sleep" }, { sq: "Zemra", en: "The heart" }, { sq: "Shkolla", en: "The school" },
+            { sq: "Miku", en: "The friend" }, { sq: "Punë", en: "Work" }, { sq: "Kripë", en: "Salt" }, { sq: "Dielli", en: "The sun" },
+            { sq: "Hëna", en: "The moon" }, { sq: "Ylli", en: "The star" }, { sq: "Mishi", en: "The meat" }, { sq: "Peshk", en: "Fish" },
+            { sq: "Shqipëri", en: "Albania" }, { sq: "Kosova", en: "Kosovo" }, { sq: "Prishtinë", en: "Prishtina" }, { sq: "Tirana", en: "Tirana" },
+            { sq: "Durrës", en: "Durres" }, { sq: "Historia", en: "History" }, { sq: "Kultura", en: "Culture" }, { sq: "Tradita", en: "Tradition" },
+            { sq: "Besimi", en: "Faith/Trust" }, { sq: "Dashuria", en: "The love" }, { sq: "Familja", en: "The family" }, { sq: "Prindërit", en: "Parents" },
+            { sq: "Vëllai", en: "The brother" }, { sq: "Motra", en: "The sister" }, { sq: "Gjyshi", en: "The grandfather" }, { sq: "Mësuesi", en: "The teacher" },
+            { sq: "Libëri", en: "Library" }, { sq: "Makina", en: "The car" }, { sq: "Gazeta", en: "The newspaper" }, { sq: "Drejtori", en: "The director" },
+            { sq: "Përshëndetje", en: "Hello" }, { sq: "Faleminderit", en: "Thank you" }, { sq: "Mirëmëngjesi", en: "Good morning" }, { sq: "Mirëmbrëma", en: "Good evening" },
+            { sq: "Pavarësia", en: "Independence" }, { sq: "Kushtetuta", en: "Constitution" }, { sq: "Drejtësia", en: "Justice" }, { sq: "Bashkëpunimi", en: "Cooperation" },
+            { sq: "Zhvillimi", en: "Development" }, { sq: "Inteligjenca", en: "Intelligence" }, { sq: "Teknologjia", en: "Technology" }, { sq: "Shëndetësia", en: "Healthcare" },
+            { sq: "Përgjegjësia", en: "Responsibility" }, { sq: "Ndërmarrësia", en: "Entrepreneurship" }, { sq: "Unë flas shqip", en: "I speak Albanian" }, { sq: "Si jeni sot?", en: "How are you today?" },
+            { sq: "Kam nevojë për ndihmë", en: "I need help" }, { sq: "Ku është qendra?", en: "Where is the center?" }, { sq: "Sa kushton kjo?", en: "How much does this cost?" }, { sq: "Gëzuar festën", en: "Happy holiday" }
+        ];
+
+        const LEVELS = Array.from({ length: 100 }, (_, i) => {
+            const start = (i * 2) % WORD_DATA.length;
+            const end = start + 3;
+            let items = WORD_DATA.slice(start, end);
+            if (items.length < 3) {
+                items = [...items, ...WORD_DATA.slice(0, 3 - items.length)];
+            }
+            return { id: i + 1, items };
+        });
+
+        function App() {
+            const [state, setState] = useState({ view: 'loading', user: null, tab: 'levels' });
+            const [game, setGame] = useState({ level: null, wordIdx: 0, feedback: null, recording: false, isSpeaking: false });
+            const [premium, setPremium] = useState({ open: false, step: 'email', email: '', code: '', loading: false });
+            const [customText, setCustomText] = useState('');
+            const [customTranslation, setCustomTranslation] = useState('');
+            const [isTranslating, setIsTranslating] = useState(false);
+
+            useEffect(() => {
+                const saved = localStorage.getItem('mesoshqip_user');
+                if (saved) setState(s => ({ ...s, user: JSON.parse(saved), view: 'main' }));
+                else setState(s => ({ ...s, view: 'register' }));
+            }, []);
+
+            // Live Translation Logic (Simplified simulation using a dictionary or simple mapping)
+            // In production, you would use a real API like Google Translate
+            useEffect(() => {
+                const timer = setTimeout(() => {
+                    if (customText.trim()) {
+                        setIsTranslating(true);
+                        // Search in our WORD_DATA first
+                        const found = WORD_DATA.find(item => item.sq.toLowerCase() === customText.toLowerCase().trim());
+                        if (found) {
+                            setCustomTranslation(found.en);
+                        } else {
+                            setCustomTranslation("Translating..."); // Placeholder for real API
+                        }
+                        setIsTranslating(false);
+                    } else {
+                        setCustomTranslation('');
+                    }
+                }, 500);
+                return () => clearTimeout(timer);
+            }, [customText]);
+
+            const speak = (text) => {
+                if (!text) return;
+                if (!state.user?.isPremium && state.tab === 'custom') { setPremium(p => ({ ...p, open: true })); return; }
+                
+                window.speechSynthesis.cancel();
+                const u = new SpeechSynthesisUtterance(text);
+                u.lang = 'sq-AL';
+                u.rate = 0.85;
+                
+                u.onstart = () => setGame(g => ({ ...g, isSpeaking: true }));
+                u.onend = () => setGame(g => ({ ...g, isSpeaking: false }));
+                u.onerror = () => setGame(g => ({ ...g, isSpeaking: false }));
+                
+                window.speechSynthesis.speak(u);
+            };
+
+            const listen = (target) => {
+                const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
+                if (!Rec) return alert("Browser mismatch");
+                const rec = new Rec();
+                rec.lang = 'sq-AL';
+                rec.onstart = () => setGame(g => ({ ...g, recording: true }));
+                rec.onresult = (e) => {
+                    const res = e.results[0][0].transcript.toLowerCase().trim();
+                    const tar = target.toLowerCase().replace(/[.,!?]/g, '').trim();
+                    if (res === tar || tar.includes(res) || res.includes(tar)) {
+                        setGame(g => ({ ...g, feedback: { status: 'ok', msg: 'Saktë! 🌟' } }));
+                        if (game.level) {
+                            if (game.wordIdx < game.level.items.length - 1) {
+                                setTimeout(() => setGame(g => ({ ...g, wordIdx: g.wordIdx + 1, feedback: null })), 1000);
+                            } else {
+                                setGame(g => ({ ...g, feedback: { status: 'win', msg: 'Niveli u krye! +50 XP 🏆' } }));
+                                const upd = { ...state.user, level: Math.max(state.user.level, game.level.id + 1), xp: state.user.xp + 50 };
+                                setState(s => ({ ...s, user: upd }));
+                                localStorage.setItem('mesoshqip_user', JSON.stringify(upd));
+                                fetch('/api/user/progress', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: upd.id, level: upd.level, xp: upd.xp }) });
+                            }
+                        }
+                    } else {
+                        setGame(g => ({ ...g, feedback: { status: 'err', msg: `Provo përsëri! (Dëgjuam: "${res}")` } }));
+                    }
+                };
+                rec.onend = () => setGame(g => ({ ...g, recording: false }));
+                rec.start();
+            };
+
+            if (state.view === 'loading') return <div className="h-screen flex items-center justify-center text-indigo-500 font-bold">Duke u ngarkuar...</div>;
+
+            if (state.view === 'register') return (
+                <div className="min-h-screen flex items-center justify-center p-6 bg-slate-950">
+                    <div className="glass p-12 rounded-[40px] w-full max-w-md text-center">
+                        <div className="w-20 h-20 premium-gradient rounded-3xl flex items-center justify-center mx-auto mb-8 text-white text-3xl font-black shadow-xl">SH</div>
+                        <h2 className="text-4xl font-black mb-10 tracking-tight text-white">Mëso Shqip AI</h2>
+                        <form onSubmit={async (e) => {
+                            e.preventDefault();
+                            const res = await fetch('/api/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: e.target.name.value }) });
+                            const data = await res.json();
+                            setState({ ...state, user: data.user, view: 'main' });
+                            localStorage.setItem('mesoshqip_user', JSON.stringify(data.user));
+                        }} className="space-y-4">
+                            <input name="name" className="w-full p-5 bg-white/5 border border-white/10 rounded-2xl outline-none text-white font-bold" placeholder="Emri juaj" required />
+                            <button className="w-full premium-gradient text-white p-5 rounded-2xl font-black text-xl active:scale-95 transition-all shadow-lg">Fillo Lojën</button>
+                        </form>
+                    </div>
+                </div>
+            );
+
+            return (
+                <div className="min-h-screen flex flex-col">
+                    <nav className="sticky top-0 z-50 bg-slate-950/80 backdrop-blur-xl border-b border-white/5 p-4 md:px-10 flex justify-between items-center">
+                        <div className="flex items-center gap-4 cursor-pointer" onClick={() => {setGame({ ...game, level: null }); setState({ ...state, tab: 'levels' });}}>
+                            <div className="w-10 h-10 premium-gradient rounded-xl flex items-center justify-center text-white font-black">SH</div>
+                            <div className="hidden sm:block">
+                                <h1 className="text-sm font-black uppercase text-white">Mëso Shqip</h1>
+                                <p className="text-[10px] text-indigo-400 font-bold tracking-widest">LVL {state.user?.level} • {state.user?.xp} XP</p>
+                            </div>
+                        </div>
+                        <div className="flex bg-white/5 p-1 rounded-xl">
+                            {['levels', 'custom'].map(t => (
+                                <button key={t} onClick={() => {setGame({ ...game, level: null }); setState({ ...state, tab: t });}} className={`px-5 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${state.tab === t ? 'bg-indigo-600 text-white' : 'text-slate-500'}`}>{t === 'levels' ? 'Nivelet' : 'Praktikë'}</button>
+                            ))}
+                        </div>
+                        <button onClick={() => setPremium({ ...premium, open: true })} className={`px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-widest ${state.user?.isPremium ? 'text-emerald-400 border border-emerald-400/20' : 'premium-gradient text-white'}`}>{state.user?.isPremium ? 'PRO Member' : 'Merr PRO'}</button>
+                    </nav>
+
+                    <main className="flex-1 max-w-6xl mx-auto w-full p-6 mt-6">
+                        {state.tab === 'levels' && !game.level && (
+                            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-4 animate-in fade-in duration-500">
+                                {LEVELS.map(l => {
+                                    const isLocked = l.id > state.user?.level;
+                                    return (
+                                        <button key={l.id} onClick={() => !isLocked && setGame({ ...game, level: l, wordIdx: 0, feedback: null })} className={`aspect-square rounded-3xl glass flex items-center justify-center text-2xl font-black ${isLocked ? 'locked' : 'level-card text-white hover:text-indigo-400'}`}>{l.id}</button>
+                                    );
+                                })}
+                            </div>
+                        )}
+
+                        {game.level && (
+                            <div className="max-w-xl mx-auto glass p-10 md:p-16 rounded-[60px] text-center relative animate-pop border-white/10">
+                                <button onClick={() => setGame({ ...game, level: null })} className="absolute top-8 left-8 text-slate-500 hover:text-white"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+                                <div className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em] mb-8">Niveli {game.level.id} • Fjala {game.wordIdx + 1}/{game.level.items.length}</div>
+                                
+                                <div className="mb-12">
+                                    <div className="text-4xl md:text-6xl font-black tracking-tight text-white drop-shadow-xl">{game.level.items[game.wordIdx].sq}</div>
+                                    <div className="text-lg md:text-xl font-bold text-slate-400 mt-2 lowercase opacity-70 italic tracking-wide">{game.level.items[game.wordIdx].en}</div>
+                                </div>
+
+                                <div className="flex justify-center gap-8">
+                                    <button 
+                                        onClick={() => speak(game.level.items[game.wordIdx].sq)} 
+                                        className={`w-20 h-20 bg-white/5 rounded-[28px] flex items-center justify-center text-indigo-400 border border-white/5 shadow-xl transition-all ${game.isSpeaking ? 'btn-pulse' : 'hover:bg-white/10 active:scale-95'}`}
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>
+                                    </button>
+                                    <button onClick={() => listen(game.level.items[game.wordIdx].sq)} disabled={game.recording} className={`w-20 h-20 rounded-[28px] flex items-center justify-center shadow-2xl transition-all active:scale-95 ${game.recording ? 'bg-red-500 animate-pulse' : 'bg-indigo-600 hover:bg-indigo-500'}`}><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" x2="12" y1="19" y2="22"></line></svg></button>
+                                </div>
+                                {game.feedback && <div className={`mt-10 p-6 rounded-2xl font-black text-lg animate-in slide-in-from-bottom-2 ${game.feedback.status === 'err' ? 'text-rose-400 bg-rose-400/5' : 'text-emerald-400 bg-emerald-400/5'}`}>{game.feedback.msg} {game.feedback.status === 'win' && <button onClick={() => setGame({ ...game, level: null })} className="block mx-auto mt-6 bg-emerald-500 text-white px-10 py-3 rounded-2xl text-sm font-black shadow-lg shadow-emerald-500/20 active:scale-95 transition-all">Vazhdo</button>}</div>}
+                            </div>
+                        )}
+
+                        {state.tab === 'custom' && (
+                            <div className="max-w-2xl mx-auto space-y-6 animate-in fade-in duration-500">
+                                <div className="glass p-10 rounded-[50px] border-white/5 relative">
+                                    <h2 className="text-2xl font-black mb-8 flex items-center gap-3"><span className="w-1.5 h-6 bg-indigo-500 rounded-full"></span>Praktikë e Lirë</h2>
+                                    <div className="relative">
+                                        <textarea 
+                                            className="w-full p-10 bg-white/5 border border-white/10 rounded-[40px] outline-none focus:border-indigo-500 text-3xl font-black text-white min-h-[250px] transition-all resize-none shadow-inner" 
+                                            placeholder="Shkruaj fjalinë tënde këtu..." 
+                                            value={customText} 
+                                            onChange={e => setCustomText(e.target.value)} 
+                                        />
+                                        {customTranslation && (
+                                            <div className="absolute bottom-6 left-10 text-lg font-bold text-slate-500 lowercase opacity-60 italic flex items-center gap-2">
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="m5 8 6 6 6-6"/></svg>
+                                                {customTranslation}
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-8">
+                                        <button 
+                                            onClick={() => speak(customText)} 
+                                            className={`p-6 bg-white/5 border border-white/5 rounded-3xl font-black text-lg transition-all active:scale-95 ${game.isSpeaking ? 'btn-pulse' : 'hover:bg-white/10'}`}
+                                        >
+                                            Dëgjo AI
+                                        </button>
+                                        <button onClick={() => listen(customText)} className="p-6 bg-indigo-600 rounded-3xl font-black text-lg text-white shadow-xl hover:bg-indigo-500 transition-all active:scale-95">Praktiko Shqiptimin</button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </main>
+
+                    {premium.open && (
+                        <div className="fixed inset-0 bg-slate-950/95 backdrop-blur-2xl flex items-center justify-center p-6 z-[100] animate-in fade-in duration-300">
+                            <div className="glass p-12 md:p-20 rounded-[60px] w-full max-w-2xl text-center relative animate-pop border-white/10">
+                                <button onClick={() => setPremium({ ...premium, open: false, step: 'email' })} className="absolute top-10 right-10 text-slate-500 hover:text-white"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+                                <div className="w-24 h-24 premium-gradient rounded-[35px] flex items-center justify-center mx-auto mb-10 text-white shadow-2xl shadow-indigo-600/30"><svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg></div>
+                                <h2 className="text-4xl md:text-5xl font-black mb-6 tracking-tighter text-white">Aktivizo PRO</h2>
+                                <p className="text-slate-400 text-lg md:text-xl mb-12 font-medium leading-relaxed">Hap qasjen në të gjitha opsionet e avancuara me një email verifikues.</p>
+                                {premium.step === 'email' ? (
+                                    <form onSubmit={async (e) => {
+                                        e.preventDefault(); setPremium({ ...premium, loading: true });
+                                        try {
+                                            const res = await fetch('/api/premium/request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: state.user.id, email: premium.email }) });
+                                            const data = await res.json();
+                                            if (res.ok) { if(data.isSimulation) alert("CODE: " + data.code); setPremium({ ...premium, step: 'verify', loading: false }); }
+                                            else alert(data.error);
+                                        } catch (e) { alert("Gabim serveri"); }
+                                        setPremium(p => ({ ...p, loading: false }));
+                                    }} className="space-y-4">
+                                        <input type="email" className="w-full p-6 bg-white/5 border border-white/10 rounded-[30px] outline-none text-white text-center font-bold text-xl focus:border-indigo-500 transition-all" placeholder="Email adresa" value={premium.email} onChange={e=>setPremium({...premium, email:e.target.value})} required />
+                                        <button disabled={premium.loading} className="w-full premium-gradient text-white p-6 rounded-[30px] font-black text-2xl shadow-xl active:scale-95 transition-all disabled:opacity-50">DËRGO KODIN</button>
+                                    </form>
+                                ) : (
+                                    <form onSubmit={async (e) => {
+                                        e.preventDefault(); setPremium({ ...premium, loading: true });
+                                        try {
+                                            const res = await fetch('/api/premium/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: state.user.id, code: premium.code }) });
+                                            const data = await res.json();
+                                            if (res.ok) { setState({ ...state, user: data.user }); localStorage.setItem('mesoshqip_user', JSON.stringify(data.user)); setPremium({ ...premium, open: false, loading: false }); alert("Urime! Jeni tani PRO."); }
+                                            else alert(data.error);
+                                        } catch (e) { alert("Gabim"); }
+                                        setPremium(p => ({ ...p, loading: false }));
+                                    }} className="space-y-4">
+                                        <input type="text" className="w-full p-6 bg-white/5 border border-white/10 rounded-[30px] outline-none text-white text-center font-black tracking-[0.5em] text-4xl focus:border-indigo-500 transition-all" placeholder="000000" maxLength="6" value={premium.code} onChange={e=>setPremium({...premium, code:e.target.value})} required />
+                                        <button disabled={premium.loading} className="w-full premium-gradient text-white p-6 rounded-[30px] font-black text-2xl shadow-xl active:scale-95 transition-all disabled:opacity-50">VERIFIKO</button>
+                                        <button type="button" onClick={()=>setPremium(p=>({...p, step:'email'}))} className="text-slate-500 font-bold hover:text-white mt-4 block mx-auto transition-colors">Ndrysho Email-in</button>
+                                    </form>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
