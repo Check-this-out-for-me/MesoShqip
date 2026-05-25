@@ -82,19 +82,28 @@
                 else setState(s => ({ ...s, view: 'register' }));
             }, []);
 
-            // Live Translation Logic (Simplified simulation using a dictionary or simple mapping)
-            // In production, you would use a real API like Google Translate
+            const isGitHubPages = window.location.hostname.includes('github.io');
+
+            const saveProgress = async (upd) => {
+                localStorage.setItem('mesoshqip_user', JSON.stringify(upd));
+                if (!isGitHubPages) {
+                    try {
+                        await fetch('/api/user/progress', { 
+                            method: 'POST', 
+                            headers: { 'Content-Type': 'application/json' }, 
+                            body: JSON.stringify({ userId: upd.id, level: upd.level, xp: upd.xp }) 
+                        });
+                    } catch (e) { console.error("Sync failed"); }
+                }
+            };
+
+            // Live Translation Logic
             useEffect(() => {
                 const timer = setTimeout(() => {
                     if (customText.trim()) {
                         setIsTranslating(true);
-                        // Search in our WORD_DATA first
                         const found = WORD_DATA.find(item => item.sq.toLowerCase() === customText.toLowerCase().trim());
-                        if (found) {
-                            setCustomTranslation(found.en);
-                        } else {
-                            setCustomTranslation("Translating..."); // Placeholder for real API
-                        }
+                        setCustomTranslation(found ? found.en : "Duke përkthyer...");
                         setIsTranslating(false);
                     } else {
                         setCustomTranslation('');
@@ -105,7 +114,10 @@
 
             const speak = (text) => {
                 if (!text) return;
-                if (!state.user?.isPremium && state.tab === 'custom') { setPremium(p => ({ ...p, open: true })); return; }
+                if (!state.user?.isPremium && state.tab === 'custom' && !isGitHubPages) { 
+                    setPremium(p => ({ ...p, open: true })); 
+                    return; 
+                }
                 
                 window.speechSynthesis.cancel();
                 const u = new SpeechSynthesisUtterance(text);
@@ -121,7 +133,7 @@
 
             const listen = (target) => {
                 const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
-                if (!Rec) return alert("Browser mismatch");
+                if (!Rec) return alert("Browseri juaj nuk mbështet njohjen e zërit.");
                 const rec = new Rec();
                 rec.lang = 'sq-AL';
                 rec.onstart = () => setGame(g => ({ ...g, recording: true }));
@@ -137,8 +149,7 @@
                                 setGame(g => ({ ...g, feedback: { status: 'win', msg: 'Niveli u krye! +50 XP 🏆' } }));
                                 const upd = { ...state.user, level: Math.max(state.user.level, game.level.id + 1), xp: state.user.xp + 50 };
                                 setState(s => ({ ...s, user: upd }));
-                                localStorage.setItem('mesoshqip_user', JSON.stringify(upd));
-                                fetch('/api/user/progress', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: upd.id, level: upd.level, xp: upd.xp }) });
+                                saveProgress(upd);
                             }
                         }
                     } else {
@@ -149,21 +160,33 @@
                 rec.start();
             };
 
-            if (state.view === 'loading') return <div className="h-screen flex items-center justify-center text-indigo-500 font-bold">Duke u ngarkuar...</div>;
+            if (state.view === 'loading') return <div className="h-screen flex items-center justify-center text-indigo-500 font-bold text-2xl">Duke u ngarkuar...</div>;
 
             if (state.view === 'register') return (
                 <div className="min-h-screen flex items-center justify-center p-6 bg-slate-950">
                     <div className="glass p-12 rounded-[40px] w-full max-w-md text-center">
                         <div className="w-20 h-20 premium-gradient rounded-3xl flex items-center justify-center mx-auto mb-8 text-white text-3xl font-black shadow-xl">SH</div>
                         <h2 className="text-4xl font-black mb-10 tracking-tight text-white">Mëso Shqip AI</h2>
+                        {isGitHubPages && <p className="text-indigo-400 mb-6 font-bold text-xs uppercase tracking-[0.2em]">Version Demo</p>}
                         <form onSubmit={async (e) => {
                             e.preventDefault();
-                            const res = await fetch('/api/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: e.target.name.value }) });
-                            const data = await res.json();
-                            setState({ ...state, user: data.user, view: 'main' });
-                            localStorage.setItem('mesoshqip_user', JSON.stringify(data.user));
+                            const name = e.target.name.value;
+                            let newUser;
+                            if (isGitHubPages) {
+                                newUser = { id: Date.now().toString(), name, isPremium: true, level: 1, xp: 0, registeredAt: new Date().toISOString() };
+                            } else {
+                                try {
+                                    const res = await fetch('/api/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
+                                    const data = await res.json();
+                                    newUser = data.user;
+                                } catch (err) {
+                                    newUser = { id: Date.now().toString(), name, isPremium: false, level: 1, xp: 0 };
+                                }
+                            }
+                            setState({ ...state, user: newUser, view: 'main' });
+                            localStorage.setItem('mesoshqip_user', JSON.stringify(newUser));
                         }} className="space-y-4">
-                            <input name="name" className="w-full p-5 bg-white/5 border border-white/10 rounded-2xl outline-none text-white font-bold" placeholder="Emri juaj" required />
+                            <input name="name" className="w-full p-5 bg-white/5 border border-white/10 rounded-2xl outline-none text-white font-bold text-lg" placeholder="Emri juaj" required />
                             <button className="w-full premium-gradient text-white p-5 rounded-2xl font-black text-xl active:scale-95 transition-all shadow-lg">Fillo Lojën</button>
                         </form>
                     </div>
